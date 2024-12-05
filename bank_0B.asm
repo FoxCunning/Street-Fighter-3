@@ -34,7 +34,7 @@ sub_apu_init:
 	LDX #$00
 	LDA #$00
 @Loop0:
-	STA ram_sound_duration,X	; Clear duration counters
+	STA ram_0090_sound_duration,X	; Clear duration counters
 	sta ram_noteid_sfx0,X	; We'll use these as "currently playing event ID"
 	INX
 	CPX #$08
@@ -44,7 +44,7 @@ sub_apu_init:
 	LDA #$00
 	TAX
 @Loop1:
-	STA ram_0080,X	; Clear effective pointers
+	STA ram_0080_SFX_data_ptr,X	; Clear effective pointers: SFX data $80-87 & music data $88-8F
 	STA ram_basereg0_mus0,X	; Clear volumes and period values
 	STA ram_03F0,X	; Unused, but we can use that for SFX volume automation
 	STA ram_04F0,X	; Clear pointer base values
@@ -54,7 +54,7 @@ sub_apu_init:
 
 	; Switch to ROM bank containing the current song
 	lda #$8C
-	sta ram_song_bank
+	sta ram_00D0_song_bank
 	sta $5115
 
 	PLA
@@ -93,7 +93,7 @@ sub_music_load:
 
 	; Read and store bank number
 	lda tbl_sound_pointers+2,Y
-	sta ram_song_bank
+	sta ram_00D0_song_bank
 
 	; Switch to that bank
 	sta $5115
@@ -102,7 +102,7 @@ sub_music_load:
 	ldx #$00	; One iteration per channel
 @SetChannelPtr:
 	lda #$00
-	sta ram_music_duration,X
+	sta ram_0094_music_duration,X
 	
 	txa
 	asl
@@ -112,11 +112,11 @@ sub_music_load:
 	lda (ram_snd_ptr_lo),Y
 	iny
 	sta ram_04F8,X		; Starting address
-	sta ram_0088,X		; Next event address
+	sta ram_0088_music_data_ptr + 0,X	; (LO)  Next event address
 	lda (ram_snd_ptr_lo),Y
 	iny
 	sta ram_04F9,X
-	sta ram_0089,X
+	sta ram_0088_music_data_ptr + 1,X	; (HI)
 
 	lda #$00
 	sta ram_noteid_mus0,X			; Clear currently playing event ID
@@ -231,14 +231,14 @@ sub_sfx_load:
 
 @active_channel:
 	sta ram_04F1,X
-	sta ram_0081,X
+	sta ram_0080_SFX_data_ptr + 1,X  ; (HI)
 
 	dey
 	lda (ram_snd_ptr_lo),Y
 	iny
 	iny
 	sta ram_04F0,X
-	sta ram_0080,X
+	sta ram_0080_SFX_data_ptr + 0,X  ; (LO)
 
 	; Clear current event ID
 	lda #$00
@@ -264,7 +264,7 @@ sub_sfx_load:
 
 	; Clear current event duration
 	lda #$00
-	sta ram_sound_duration,X
+	sta ram_0090_sound_duration,X
 
 	; Enable this channel
 	lda tbl_enable_chmask,X
@@ -325,7 +325,7 @@ sub_music_resume:
 	bne @resume
 
 	; Secret code for disabling SFX
-	lda ram_btn_hold
+	lda ram_00B6_btn_hold
 	cmp #$60	; SELECT + B
 	bne @end
 
@@ -429,10 +429,10 @@ sub_sound_proc:
 	jmp @next_channel
 	
 @ProcessChannel:
-	lda ram_sound_duration,X	; This is a counter to keep the same event/note going
+	lda ram_0090_sound_duration,X	; This is a counter to keep the same event/note going
 	beq @CheckMuteEnded			; If duration is zero, then nothing is playing yet,
 								; or a note/rest has just finished playing
-	dec ram_sound_duration,X	; Otherwise, keep playing and decrease duration
+	dec ram_0090_sound_duration,X	; Otherwise, keep playing and decrease duration
 	
 	jsr sub_calculate_volume
 
@@ -457,9 +457,9 @@ sub_sound_proc:
 ;	ASL
 ;	TAX		; Now multiplied by 2 (0-E)
 @ReadSndEvent:
-	lda ram_0080,X	; Read pointer to next event for this channel
+	lda ram_0080_SFX_data_ptr + 0,X	 ; (LO) Read pointer to next event for this channel
 	sta ram_snd_ptr_lo
-	lda ram_0081,X
+	lda ram_0080_SFX_data_ptr + 1,X  ; (HI)
 	sta ram_snd_ptr_hi
 	ldy #$00
 	lda (ram_snd_ptr_lo),Y
@@ -483,7 +483,7 @@ sub_sound_proc:
 	lda (ram_snd_ptr_lo),Y
 	sec
 	sbc #$01	; Subtract one because it starts playing immediately
-	sta ram_sound_duration,X
+	sta ram_0090_sound_duration,X
 	jmp @next_channel
 	
 @DutyVolEvt:
@@ -518,7 +518,7 @@ sub_sound_proc:
 	lda (ram_snd_ptr_lo),Y
 	sec
 	sbc #$01
-	sta ram_sound_duration,X
+	sta ram_0090_sound_duration,X
 	txa
 	jsr sub_disable_channel
 	jmp @next_channel
@@ -600,9 +600,9 @@ sub_sound_proc:
 
 	; Restore initial pointer for this channel's events so it loops
 	lda ram_04F0,X
-	sta ram_0080,X
+	sta ram_0080_SFX_data_ptr + 0,X  ; (LO)
 	lda ram_04F1,X
-	sta ram_0081,X
+	sta ram_0080_SFX_data_ptr + 1,X  ; (HI)
 
 	;LDA ram_ch_mute_mask
 	;AND #$F0
@@ -1538,10 +1538,10 @@ sub_apply_vibrato:
 @Vibrato_2:
 	sec
 	sbc #$10
-	sta ram_tmp_var
+	sta ram_00D1_tmp_var
 	lda #$0F
 	sec
-	sbc ram_tmp_var
+	sbc ram_00D1_tmp_var
 	jmp @Vibrato_1
 
 @Vibrato_3:
@@ -1574,12 +1574,12 @@ sub_apply_vibrato:
 
 @VibratoStore:
 	;sta ram_reg2_mus0,X
-	sta ram_tmp_var
+	sta ram_00D1_tmp_var
 
 	pla
 	tay
 
-	lda ram_tmp_var
+	lda ram_00D1_tmp_var
 	rts
 
 
@@ -2074,11 +2074,10 @@ sub_set_duty_volume:
 ; A = value to add to pointer
 sub_advance_sound_ptr:
 	CLC
-	ADC ram_0080,X
-	STA ram_0080,X
+	ADC ram_0080_SFX_data_ptr + 0,X  ; (LO)
+	STA ram_0080_SFX_data_ptr + 0,X
 	BCC @End
-
-	INC ram_0081,X
+	INC ram_0080_SFX_data_ptr + 1,X  ; (HI)
 @End:
 	RTS
 

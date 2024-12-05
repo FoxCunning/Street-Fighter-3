@@ -6,41 +6,46 @@
 ; 0x01C010-0x02000F
 
 tbl_C000_prg_bank:
-	.byte $80   ; 00 0x000010
-	.byte $82   ; 01 0x004010
-	.byte $84   ; 02 0x008010
-	.byte $85   ; 03 0x00A010
-	.byte $81   ; 04 0x002010
-	.byte $82   ; 05 0x004010
-	.byte $83   ; 06 0x006010
-	.byte $86   ; 07 0x00C010
-	.byte $87   ; 08 0x00E010
+	.byte $80   ; 00 0x000010 Chun Li
+	.byte $82   ; 01 0x004010 Ryu
+	.byte $84   ; 02 0x008010 Guile
+	.byte $85   ; 03 0x00A010 Blanka
+	.byte $81   ; 04 0x002010 Dhalsim
+	.byte $82   ; 05 0x004010 Ken (dup of Ryu)
+	.byte $83   ; 06 0x006010 Balrog_Vega
+	.byte $86   ; 07 0x00C010 Sagat
+	.byte $87   ; 08 0x00E010 Vega_Bison
 
 
 
-tbl_C00B:
-	.byte $00   ; 00
-	.byte $5A   ; 01
-	.byte $40   ; 02
-	.byte $2E   ; 03
-	.byte $13   ; 04
-	.byte $5A   ; 05
-	.byte $76   ; 06
-	.byte $94   ; 07
-	.byte $80   ; 08
-	.byte $A6   ; 09
-	.byte $A6   ; 0A
+tbl_C00B_chr_bank_ofs:
+; Affected: CHR sprites (bank offsets?)
+; Unaffected: Ending sequences
+	.byte $00   ; 00 Chun Li
+	.byte $5A   ; 01 Ryu
+	.byte $40   ; 02 Guile
+	.byte $2E   ; 03 Blanka
+	.byte $13   ; 04 Dhalsim
+	.byte $5A   ; 05 Ken (dup of Ryu)
+	.byte $76   ; 06 Balrog_Vega
+	.byte $94   ; 07 Sagat
+	.byte $80   ; 08 Vega_Bison
+	.byte $A6   ; 09 TS cursor
+				;	 VS portraits
+				;	 CS countdown timer
+	.byte $A6   ; 0A PS cursors
+				;	 PS plane
 
 
 
-sub_C076:
+sub_C076_GM_ending_continue_VS:
 	JSR sub_F85C_set_scroll_to_0
 	LDA #$8A    ; 0x014010
-	STA $5114
-	LDA #$01
-	JSR sub_FD25
-	LDA #$00
-	JSR sub_FD25
+	STA $5114	; MMC5 PRG Bankswitch Range $8000-$9FFF(Mode 3)
+	LDA #$01    ; p2
+	JSR sub_FD25_read_gamepad_changes
+	LDA #$00    ; p1
+	JSR sub_FD25_read_gamepad_changes
 	JSR sub_E1BC
 	JSR sub_E337
 	JSR sub_EA21
@@ -50,14 +55,14 @@ sub_C076:
 ;+FOX Simplified GLFSR random number generator with 8-bit seed.
 ;Returns a random 8-bit number in A.
 sub_rng:
-	lda ram_rng_seed
+	lda ram_0060_rng_seed
 	lsr
 	bcc @store_random
 
 		eor #$B4
 
 	@store_random:
-	sta ram_rng_seed
+	sta ram_0060_rng_seed
 	
 	rts
 
@@ -76,12 +81,11 @@ sub_gen_opponents_list:
 	and #$07
 	cmp #$06
 	bcc @store_first_opponent
-
-	sec
+;	sec										; -Eriknoc: C already set
 	sbc #$05
 
 	@store_first_opponent:
-	sta ram_match_order
+	sta ram_03D0_match_order + 0
 
 	;Generate five more in a loop
 	ldx #$01
@@ -90,19 +94,19 @@ sub_gen_opponents_list:
 	and #$07
 	cmp #$06
 	bcc @check_repeats
-		sec
-		sbc #$05
+;	sec										; -Eriknoc: C already set
+	sbc #$05
 
 	@check_repeats:
-	sta ram_match_order,X
+	sta ram_03D0_match_order,X
 
 	txa
 	tay
 	dey
 
 	@check_loop:
-	lda ram_match_order,X
-	cmp ram_match_order,Y
+	lda ram_03D0_match_order,X
+	cmp ram_03D0_match_order,Y
 	bne @check_prev
 
 		;If the chosen value was already present, increase it by one
@@ -129,12 +133,17 @@ sub_gen_opponents_list:
 
 
 	;Add non-random opponents
-	lda #$06
-	sta ram_match_order+6
-	lda #$07
-	sta ram_match_order+7
-	lda #$08
-	sta ram_match_order+8
+	stx ram_03D0_match_order + 6 ; 06 Balrog_Vega	; +Eriknoc: optimized code (saves 4 bytes)
+	inx
+	stx ram_03D0_match_order + 7 ; 07 Sagat
+	inx
+	stx ram_03D0_match_order + 8 ; 08 Vega_Bison
+;	lda #$06										; -Eriknoc: previous code by FOX
+;	sta ram_03D0_match_order + 6
+;	lda #$07
+;	sta ram_03D0_match_order + 7
+;	lda #$08
+;	sta ram_03D0_match_order + 8
 	
 	;Restore X and Y
 	pla
@@ -153,27 +162,27 @@ sub_start_menu:
 	BNE bra_C0A4
 	lda ram_disable_demo
 	bne @DemoDisabled
-	DEC ram_timer_before_demo
+	DEC ram_00C7_timer_before_demo
 	@DemoDisabled:
 	LDA #$3C
 	STA ram_0010
 bra_C0A4:
 	LDA #$00
-	JSR sub_FD25	; Read controller
+	JSR sub_FD25_read_gamepad_changes	; Read controller
 	LDX #$10
 	LDA ram_050D,X
 	beq @Check
 	jmp bra_C0F5
 
 	@Check:
-	LDA ram_btn_press
-	CMP #con_btn___Start
+	LDA ram_00B4_btn_press + 0  ; p1
+	CMP #con_act_Start_pressed
 	BNE bra_C0C0
 
 ;Start button
 	
 	lda ram_0010	;Init random seed
-	sta ram_rng_seed
+	sta ram_0060_rng_seed
 	jsr sub_rng
 
 	;Generate a random list of opponents when START is pressed
@@ -185,15 +194,15 @@ bra_C0A4:
 	JSR sub_sndload_noloop
 
 bra_C0C0:
-	LDA ram_btn_press
+	LDA ram_00B4_btn_press + 0  ; p1
 	; CMP #$00    ; bzk optimize
 	BEQ bra_C0E1
 
 	LDA #$1A
-	STA ram_timer_before_demo
+	STA ram_00C7_timer_before_demo
 
 ;+FOX: Check if Select+Up or Select+Down is pressed
-	lda ram_btn_hold
+	lda ram_00B6_btn_hold
 	cmp #$28
 	bne @CheckSelectDown
 
@@ -242,7 +251,7 @@ bra_C0C0:
 	jmp bra_C0E1
 
 @CheckDpadLeft:
-	LDA ram_btn_hold	; Check if D-Pad Left is pressed
+	LDA ram_00B6_btn_hold	; Check if D-Pad Left is pressed
 	AND #con_btn_Left
 	BEQ bra_C0D4
 
@@ -251,7 +260,7 @@ bra_C0C0:
 	BNE bra_C0DC	; This is basically a faster JMP
 
 bra_C0D4:
-	LDA ram_btn_hold	; Check if D-Pad Right is pressed
+	LDA ram_00B6_btn_hold	; Check if D-Pad Right is pressed
 	AND #con_btn_Right
 	BEQ bra_C0E1
 
@@ -259,17 +268,17 @@ bra_C0D4:
 	LDA #$01
 bra_C0DC:
 	CLC
-	ADC ram_cursor_difficulty	; Set new difficulty value
-	STA ram_cursor_difficulty
+	ADC ram_00C9_cursor_difficulty	; Set new difficulty value
+	STA ram_00C9_cursor_difficulty
 
 ; Branch directly here if no left/right button was pressed
 bra_C0E1:
-	LDA ram_cursor_difficulty
+	LDA ram_00C9_cursor_difficulty
 	CMP #$08
 	BCC bra_C0EC
 	SEC
 	SBC #$08
-	STA ram_cursor_difficulty
+	STA ram_00C9_cursor_difficulty
 bra_C0EC:
 	ASL
 	ASL
@@ -309,7 +318,7 @@ sub_display_current_song:
 	jmp sub_FCD0	
 
 
-sub_C100:
+sub_C100_GM_player_select:
 	JSR sub_F85C_set_scroll_to_0
 	LDA #$8A    ; 0x014010
 	STA $5114
@@ -319,27 +328,27 @@ sub_C100:
 	STA ram_00FA
 	LDA ram_051E
 	BNE bra_C11A
-	LDA ram_p1_fighter
+	LDA ram_003B_fighter_id + 0  ; p1
 	JMP loc_C11C
 bra_C11A:
-	LDA ram_p2_fighter
+	LDA ram_003B_fighter_id + 1  ; p2
 loc_C11C:
-	STA ram_00DE
+	STA ram_00DE_fighter_id_tmp
 	LDX #$10
 	ASL
 	TAY
-	LDA tbl_C21D,Y
+	LDA tbl_C21D_world_map_XY + 0,Y  ; X pos
 	STA ram_00DB
-	LDA tbl_C21E,Y
+	LDA tbl_C21D_world_map_XY + 1,Y  ; Y pos
 	STA ram_00DC
 	TYA
 	ASL
 	ASL
 	CLC
-	ADC ram_00DE
-	LDY ram_level
+	ADC ram_00DE_fighter_id_tmp
+	LDY ram_000D_difficulty
 	;ADC tbl_match_order,Y
-	adc ram_match_order,Y	;+FOX random match order
+	adc ram_03D0_match_order,Y	;+FOX random match order
 	JSR sub_ECE0
 	LDA #$1E	; Aeroplane sound
 	JSR sub_sndload_noloop
@@ -351,9 +360,9 @@ bra_C144:
 	JMP loc_C213
 bra_C14B:
 	LDA #$00
-	JSR sub_FD25
+	JSR sub_FD25_read_gamepad_changes
 	LDA #$01
-	JSR sub_FD25
+	JSR sub_FD25_read_gamepad_changes
 	LDX #$10
 	LDY #$00
 loc_C159:
@@ -363,10 +372,10 @@ loc_C159:
 	BNE bra_C166
 	JMP loc_C208
 bra_C166:
-	LDA ram_btn_press,Y
-	CMP #con_btn___A
+	LDA ram_00B4_btn_press,Y
+	CMP #con_act_A_pressed
 	BEQ bra_C171
-	CMP #con_btn___B
+	CMP #con_act_B_pressed
 	BNE bra_C197
 bra_C171:
 	LDA ram_050E,X
@@ -388,62 +397,62 @@ bra_C185:
 	LDA #$1A	; Selection sound
 	JSR sub_sndload_noloop
 bra_C197:
-	LDA ram_btn_press,Y
-	CMP #con_btn___nothing
+	LDA ram_00B4_btn_press,Y
+	CMP #con_act_none
 	BEQ bra_C1CF
-	LDA ram_btn_hold,Y
+	LDA ram_00B6_btn_hold,Y
 	AND #con_btn_Up
 	BEQ bra_C1A9
 	LDA #$06
 	BNE bra_C1C8
 bra_C1A9:
-	LDA ram_btn_hold,Y
+	LDA ram_00B6_btn_hold,Y
 	AND #con_btn_Down
 	BEQ bra_C1B4
 	LDA #$03
 	BNE bra_C1C8
 bra_C1B4:
-	LDA ram_btn_hold,Y
+	LDA ram_00B6_btn_hold,Y
 	AND #con_btn_Left
 	BEQ bra_C1BF
 	LDA #$08
 	BNE bra_C1C8
 bra_C1BF:
-	LDA ram_btn_hold,Y
+	LDA ram_00B6_btn_hold,Y
 	AND #con_btn_Right
 	BEQ bra_C1CF
 	LDA #$01
 bra_C1C8:
 	CLC
-	ADC ram_cursor_fighter,Y
-	STA ram_cursor_fighter,Y
+	ADC ram_00F4_PS_cursor_grid,Y
+	STA ram_00F4_PS_cursor_grid,Y
 bra_C1CF:
-	LDA ram_cursor_fighter,Y
+	LDA ram_00F4_PS_cursor_grid,Y
 	CMP #$09
 	BCC bra_C1DC
 	SEC
 	SBC #$09
-	STA ram_cursor_fighter,Y
+	STA ram_00F4_PS_cursor_grid,Y
 bra_C1DC:
-	STA ram_00F6
+	STA ram_00F6_PS_cursor_X_grid
 	LDA #$00
-	STA ram_00F7
+	STA ram_00F7_PS_cursor_Y_grid
 loc_C1E2:
-	LDA ram_00F6
+	LDA ram_00F6_PS_cursor_X_grid
 	CMP #$03
 	BCC bra_C1F2
 	SEC
 	SBC #$03
-	STA ram_00F6
-	INC ram_00F7
+	STA ram_00F6_PS_cursor_X_grid
+	INC ram_00F7_PS_cursor_Y_grid
 	JMP loc_C1E2
 bra_C1F2:
-	LDA ram_00F6
+	LDA ram_00F6_PS_cursor_X_grid
 	JSR sub_D953_divide_by_20h
 	CLC
 	ADC #$50
 	STA ram_0302,X
-	LDA ram_00F7
+	LDA ram_00F7_PS_cursor_Y_grid
 	JSR sub_D953_divide_by_20h
 	CLC
 	ADC #$80
@@ -463,26 +472,37 @@ loc_C213:
 
 
 
-tbl_C21D:
-	.byte $70   ; 
-tbl_C21E:
-	.byte $27   ; 
-	.byte $80   ; 
-	.byte $2F   ; 
-	.byte $B0   ; 
-	.byte $1F   ; 
-	.byte $A8   ; 
-	.byte $57   ; 
-	.byte $50   ; 
-	.byte $3F   ; 
-	.byte $B8   ; 
-	.byte $37   ; 
-	.byte $30   ; 
-	.byte $1F   ; 
-	.byte $60   ; 
-	.byte $4F   ; 
-	.byte $78   ; 
-	.byte $47   ; 
+tbl_C21D_world_map_XY:
+; X,Y country coordinates on world map
+	.byte $70,$27	; 00 China    (Chun Li)
+	.byte $80,$2F	; 01 Japan    (Ryu)
+	.byte $B0,$1F	; 02 USA      (Guile)
+	.byte $A8,$57	; 03 Brazil   (Blanka)
+	.byte $50,$3F	; 04 India    (Dhalsim)
+	.byte $B8,$37	; 05 USA      (Ken)
+	.byte $30,$1F	; 06 Spain    (Balrog_Vega)
+	.byte $60,$4F	; 07 Thailand (Sagat)
+	.byte $78,$47	; 08 Thailand (Vega_Bison)
+;tbl_C21D:
+;	.byte $70   ; 
+;tbl_C21E:
+;	.byte $27   ; 
+;	.byte $80   ; 
+;	.byte $2F   ; 
+;	.byte $B0   ; 
+;	.byte $1F   ; 
+;	.byte $A8   ; 
+;	.byte $57   ; 
+;	.byte $50   ; 
+;	.byte $3F   ; 
+;	.byte $B8   ; 
+;	.byte $37   ; 
+;	.byte $30   ; 
+;	.byte $1F   ; 
+;	.byte $60   ; 
+;	.byte $4F   ; 
+;	.byte $78   ; 
+;	.byte $47   ; 
 
 
 
@@ -498,32 +518,32 @@ vec_C66B_IRQ_handler:
 @garbage_loop:  ; for getting rid of artifacts
     DEX
     BNE @garbage_loop
-    LDA ram_irq_counter
+    LDA ram_000F_irq_counter
     BNE @skip_irq_setup     ; this is the first irq trigger on this frame
-    LDA ram_irq_screen
+    LDA ram_000C_irq_screen
     ASL
     ASL
     TAX
     LDA tbl_irq_setup,X
-    STA ram_irq_next_bank
+    STA ram_00C2_irq_next_bank
     LDA tbl_irq_setup + 1,X
-    STA ram_irq_next_line
+    STA ram_00C3_irq_next_line
     LDA tbl_irq_setup + 2,X
-    STA ram_irq_lines_interval
+    STA ram_00C4_irq_lines_interval
     LDA tbl_irq_setup + 3,X
-    STA ram_irq_trigger_limit
+    STA ram_00C5_irq_trigger_limit
 @skip_irq_setup:
-    LDA ram_irq_counter
+    LDA ram_000F_irq_counter
     TAX
-    CMP ram_irq_trigger_limit
+    CMP ram_00C5_irq_trigger_limit
     BCS @exit_irq    ; no more irq and chr bank swapping on this frame
     TXA     ; update Z flag
     BNE @swap_banks
-    LDA ram_current_game_mode
+    LDA ram_000E_current_game_mode
     CMP #con_GM_gameplay
     BNE @swap_banks
     LDA #$20 - 1
-    LDX ram_hud_height
+    LDX ram_002D_hud_height
     CPX #$08
     BNE @skip_40    ; while hud is not fully drawn, pretend that it's still small
     LDA #$40 - 1
@@ -531,37 +551,37 @@ vec_C66B_IRQ_handler:
     STA $5203   ; set scanline
     LDX #$80
     STX $5204   ; enable irq again
-    CMP ram_irq_next_line
+    CMP ram_00C3_irq_next_line
     BCC @exit_irq       ; check will fail if hud is fully drawn
-    LDA ram_irq_next_line
+    LDA ram_00C3_irq_next_line
     CLC
-    ADC ram_irq_lines_interval
-    STA ram_irq_next_line       ; correct next line
-    DEC ram_irq_trigger_limit   ; correct limit (not really nesessary)
-    INC ram_irq_next_bank       ; correct bank
+    ADC ram_00C4_irq_lines_interval
+    STA ram_00C3_irq_next_line       ; correct next line
+    DEC ram_00C5_irq_trigger_limit   ; correct limit (not really nesessary)
+    INC ram_00C2_irq_next_bank       ; correct bank
     BNE @exit_irq   ; jump
 @swap_banks:
     LDA #$01    ; high bit for irq chr banks
     STA $5130
-    LDA ram_irq_next_bank
+    LDA ram_00C2_irq_next_bank
     STA $512B
     STA $5123
-    INC ram_irq_next_bank   ; prepare next bank
-    LDA ram_copy_camera_X   ; set scroll
+    INC ram_00C2_irq_next_bank  ; prepare next bank
+    LDA ram_0005_copy_camera_X  ; set scroll
     STA $2005
     LDA #$00
     STA $2005
-    LDA ram_irq_next_line
+    LDA ram_00C3_irq_next_line
     STA $5203   ; set scanline
     LDX #$80
     STX $5204   ; enable irq again
     CLC
-    ADC ram_irq_lines_interval
-    STA ram_irq_next_line   ; prepare next line
+    ADC ram_00C4_irq_lines_interval
+    STA ram_00C3_irq_next_line   ; prepare next line
 @exit_irq:
     LDA #$00    ; high bit for other chr banks
     STA $5130
-    INC ram_irq_counter
+    INC ram_000F_irq_counter
     PLA
     TAY
     PLA
@@ -744,7 +764,7 @@ bra_C722_clear_ram_loop:
 	STA ram_high_score
 	STA ram_high_score + 1
 	LDA #$03
-	STA ram_cursor_difficulty
+	STA ram_00C9_cursor_difficulty
 	JSR sub_C759
 sub_C759:
 loc_C759:
@@ -752,9 +772,9 @@ loc_C759:
 	JSR sub_F93B
 	JSR sub_EFEE_clear_0300_03CF
 	LDA #$0A
-	STA ram_irq_screen
+	STA ram_000C_irq_screen
 	LDA #con_GM_title
-	STA ram_current_game_mode
+	STA ram_000E_current_game_mode
 	LDA #$00
 	STA ram_00FC
 	LDX #$0C    ; title screen
@@ -778,14 +798,14 @@ loc_C759:
 	LDA #$8A    ; 0x014010
 	STA ram_030C,X
 	LDA #$1A
-	STA ram_timer_before_demo
+	STA ram_00C7_timer_before_demo
 	LDA #$3C
 	STA ram_0010
 	LDA #$13
 	JSR sub_E839
 	JSR sub_FCD0
 bra_C7B1:
-	LDA ram_timer_before_demo
+	LDA ram_00C7_timer_before_demo
 	BNE bra_C7BC
 	LDA #$01
 	STA ram_00C6
@@ -794,11 +814,11 @@ bra_C7BC:
 	LDA ram_050D,X
 	BEQ bra_C7B1
 loc_C7C1:
-	LDA ram_cursor_difficulty
-	STA ram_difficulty
+	LDA ram_00C9_cursor_difficulty
+	STA ram_00CA_difficulty
 	CLC
 	ADC #$02
-	STA ram_credits
+	STA ram_00CB_credits
 	JSR sub_FAF4
 	JSR sub_F84D
 	JSR sub_C84C_clear_player_scores
@@ -806,10 +826,10 @@ loc_C7C1:
 	BEQ bra_C81D
 	LDA #$00
 	STA ram_002E
-	STA ram_00F8
-	STA ram_00F9
+	STA ram_00F8_rounds_won + 0  ; p1
+	STA ram_00F8_rounds_won + 1  ; p2
 	LDA #$07
-	STA ram_difficulty
+	STA ram_00CA_difficulty
 	LDA #$09
 	STA ram_00A0
 	JSR sub_FD95
@@ -819,18 +839,18 @@ bra_C7EC_loop:
 	ASL
 	TAY
 	LDA tbl_demo_fighters_p1,Y
-	STA ram_p1_fighter
+	STA ram_003B_fighter_id + 0  ; p1
 	LDA tbl_demo_fighters_p2,Y
-	STA ram_p2_fighter
+	STA ram_003B_fighter_id + 1  ; p2
 	LDA tbl_demo_fighters_p2,Y  ; bzk optimize
 	TAY
 	LDA tbl_fighter_bg_ids,Y
-	CMP ram_screen
+	CMP ram_0027_background_id
 	BNE bra_C807
 	LDA #$01
 	BNE bra_C7EC_loop
 bra_C807:
-	STA ram_screen
+	STA ram_0027_background_id
 	LDA #$01
 	STA ram_051E
 	STA ram_054E
@@ -842,15 +862,15 @@ bra_C814_infinite_loop:
 	JMP loc_C759
 bra_C81D:
 	LDA #$00
-	STA ram_level
+	STA ram_000D_difficulty
 	STA ram_051E
 	LDA #$01
 	STA ram_054E
 	STA ram_00DF
 	LDA #$00
-	STA ram_cursor_fighter
+	STA ram_00F4_PS_cursor_grid + 0  ; p1
 	LDA #$03
-	STA ram_cursor_fighter + 1
+	STA ram_00F4_PS_cursor_grid + 1  ; p2
 	JSR sub_C857
 	JMP loc_C759
 
@@ -895,9 +915,9 @@ loc_C857:
 	JSR sub_F93B
 	JSR sub_EFEE_clear_0300_03CF
 	LDA #$09
-	STA ram_irq_screen
+	STA ram_000C_irq_screen
 	LDA #con_GM_plr_select
-	STA ram_current_game_mode
+	STA ram_000E_current_game_mode
 	LDA #$00
 	STA ram_002E
 	LDX #$0B    ; player select screen
@@ -962,25 +982,25 @@ bra_C8E5:
 loc_C8ED:
 	LDA #$01
 	JSR sub_FCF2_artificial_delay
-	LDX ram_level
+	LDX ram_000D_difficulty
 	;LDA tbl_match_order,X
-	lda ram_match_order,X	;+FOX Random match order
-	STA ram_p1_fighter
-	STA ram_p2_fighter
+	lda ram_03D0_match_order,X	;+FOX Random match order
+	STA ram_003B_fighter_id + 0  ; p1
+	STA ram_003B_fighter_id + 1  ; p2
 	TAX
 	LDA tbl_fighter_bg_ids,X
-	STA ram_screen
+	STA ram_0027_background_id
 	LDA ram_051E
 	BNE bra_C90D
-	LDX ram_cursor_fighter
+	LDX ram_00F4_PS_cursor_grid + 0  ; p1
 	LDA tbl_fighter_ids,X
-	STA ram_p1_fighter
+	STA ram_003B_fighter_id + 0  ; p1
 bra_C90D:
 	LDA ram_054E
 	BNE bra_C919
-	LDX ram_cursor_fighter + 1
+	LDX ram_00F4_PS_cursor_grid + 1  ; p2
 	LDA tbl_fighter_ids,X
-	STA ram_p2_fighter
+	STA ram_003B_fighter_id + 1  ; p2
 bra_C919:
 	LDA #$03
 	STA ram_00FA
@@ -1001,12 +1021,12 @@ bra_C93C:
 	TAX
 	LDA ram_050E,X
 	BEQ bra_C956
-	LDA ram_credits
+	LDA ram_00CB_credits
 	BEQ bra_C955_RTS
 	JSR sub_F54A_draw_continue_screen
 	LDA ram_007E
 	BEQ bra_C955_RTS
-	DEC ram_credits
+	DEC ram_00CB_credits
 	JSR sub_C84C_clear_player_scores
 	JMP loc_C935
 bra_C955_RTS:
@@ -1021,23 +1041,23 @@ bra_C956:
 	LDA ram_054E
 	BEQ bra_C98D_game_not_finished_yet
 bra_C96B:
-	INC ram_level
-	LDA ram_level
+	INC ram_000D_difficulty
+	LDA ram_000D_difficulty
 	AND #$01
 	BNE bra_C97B
-	LDA ram_difficulty
+	LDA ram_00CA_difficulty
 	CMP #$05
 	BCS bra_C97B
-	INC ram_difficulty
+	INC ram_00CA_difficulty
 bra_C97B:
-	LDA ram_level
+	LDA ram_000D_difficulty
 	CMP #$09
 	BCC bra_C98D_game_not_finished_yet
 	JSR sub_C9DE_select_final_cutscene
-	LDA ram_cursor_difficulty
+	LDA ram_00C9_cursor_difficulty
 	CMP #$07
 	BCS bra_C98C_RTS
-	INC ram_cursor_difficulty
+	INC ram_00C9_cursor_difficulty
 bra_C98C_RTS:
 	RTS
 bra_C98D_game_not_finished_yet:
@@ -1117,17 +1137,17 @@ sub_C9DE_select_final_cutscene:
 	JSR sub_F84D
 	JSR sub_EFEE_clear_0300_03CF
 	LDA #con_GM_ending
-	STA ram_current_game_mode
+	STA ram_000E_current_game_mode
 	LDA ram_051E
 	BNE bra_C9F2
-	LDA ram_p1_fighter
+	LDA ram_003B_fighter_id + 0  ; p1
 	JMP loc_C9F4
 bra_C9F2:
-	LDA ram_p2_fighter
+	LDA ram_003B_fighter_id + 1  ; p2
 loc_C9F4:
 	CLC
 	ADC #$0E
-                                        STA ram_irq_screen
+                                        STA ram_000C_irq_screen
 	TAX
 	JSR sub_E7E9_draw_screen
 	LDA #$0D	; Ending
@@ -1142,8 +1162,8 @@ loc_C9F4:
 
 sub_CA0B:
 	LDA #$00
-	STA ram_00F8
-	STA ram_00F9
+	STA ram_00F8_rounds_won + 0  ; p1
+	STA ram_00F8_rounds_won + 1  ; p2
 	STA ram_002E
 	JSR sub_F4AB
 	LDA #$05
@@ -1165,10 +1185,10 @@ bra_CA24_infinite_loop:
 	LDA ram_002E
 	CMP #$FF
 	BEQ bra_CA21
-	LDA ram_00F8
+	LDA ram_00F8_rounds_won + 0  ; p1
 	CMP #$02
 	BCS bra_CA4B_RTS
-	LDA ram_00F9
+	LDA ram_00F8_rounds_won + 1  ; p2
 	CMP #$02
 	BCC bra_CA21
 bra_CA4B_RTS:
@@ -1198,14 +1218,14 @@ bra_CA68_RTS:
 
 sub_CA69:
 	JSR sub_F84D
-	LDX ram_screen
-	STX ram_irq_screen
+	LDX ram_0027_background_id
+	STX ram_000C_irq_screen
                                         JSR sub_E7E9_draw_screen
-	LDA ram_screen
+	LDA ram_0027_background_id
 	JSR sub_sndload_loop
-	LDY ram_p1_fighter
+	LDY ram_003B_fighter_id + 0  ; p1
 	LDA tbl_CAEC,Y
-	LDY ram_p2_fighter
+	LDY ram_003B_fighter_id + 1  ; p2
 	CLC
 	ADC tbl_CAEC,Y
 	STA ram_00C0
@@ -1213,9 +1233,9 @@ sub_CA69:
 	JSR sub_CA4C_update_high_score
 	LDY #$02
 	JSR sub_CA4C_update_high_score
-	LDA #$30
-	STA ram_00AC
-	STA ram_00AD
+	LDA #$30  ; ASCII "0"
+	STA ram_00A7_dec_num_ascii + 5  ; 6th digit
+	STA ram_00A7_dec_num_ascii + 6  ; 7th digit
 	LDA #$00
 	STA ram_0073
 	JSR sub_F131_print_points
@@ -1231,17 +1251,17 @@ sub_CA69:
 	STA ram_0072
 	STA ram_007C
 	STA ram_002E
-	STA ram_pause_flag
+	STA ram_00FB_pause_state
 	STA ram_00BF
 	STA ram_002F
 	LDA #$03
-	STA ram_hud_height
+	STA ram_002D_hud_height
 	LDA #$1E
-	STA ram_003D
+	STA ram_003D_sub_counter
 	LDA #$63
-	STA ram_game_time
+	STA ram_003E_game_time
 	LDA #$3F
-	STA ram_camera_X
+	STA ram_0039_camera_X
 	JSR sub_CAF6
 	JSR sub_FCD0
 	LDA #$B4
@@ -1281,12 +1301,12 @@ sub_CAF5_print_names:
     TYA
     PHA
     CLV         ; 1p flag V = 0
-    LDA ram_p1_fighter
+    LDA ram_003B_fighter_id + 0  ; p1
     JSR sub_print_name
     LDA #$7F
     CLC
     ADC #$01    ; 2p flag V = 1
-    LDA ram_p2_fighter
+    LDA ram_003B_fighter_id + 1  ; p2
     JSR sub_print_name
     PLA
     TAY
@@ -1297,20 +1317,20 @@ sub_print_name:
     ASL
     TAY
     LDA #$03        ; 03 * 20 + 04 = 64 (2064)
-    STA ram_00B0
+    STA ram_00B0_text_V_pos
     LDA #$04
     BVC @it_is_p1
     LDA #$1C
     SEC
     SBC tbl_names_length,X
 @it_is_p1:
-    STA ram_00B1
+    STA ram_00B1_text_H_pos
     LDA tbl_names_txt,Y
-    STA ram_00AE
+    STA ram_00AE_text_ptr + 0  ; L
     LDA tbl_names_txt + 1,Y
-    STA ram_00AF
+    STA ram_00AE_text_ptr + 1  ; H
     LDA tbl_names_length,X
-    STA ram_00B2
+    STA ram_00B2_text_length
     JSR sub_FF9D_write_to_ppu
     RTS
     
@@ -1372,7 +1392,7 @@ sub_CAF6:
 	STA ram_0015
 	JSR sub_EFEE_clear_0300_03CF
 	LDA #con_GM_gameplay
-	STA ram_current_game_mode
+	STA ram_000E_current_game_mode
 	LDX #$10
 loc_CB05:
 	LDA #$00
@@ -1380,16 +1400,16 @@ loc_CB05:
 	STA ram_040B,X
 	LDA #$FF
 	STA ram_0501,X
-	LDA ram_p1_fighter
+	LDA ram_003B_fighter_id + 0  ; p1
 	STA ram_050A,X
 	JSR sub_E6D3
 	JSR sub_CB6A
 	JSR sub_FA35
 	CPX #$10
 	BEQ bra_CB42
-	LDA ram_p2_fighter
+	LDA ram_003B_fighter_id + 1  ; p2
 	STA ram_050A,X
-	CMP ram_p1_fighter
+	CMP ram_003B_fighter_id + 0  ; p1
 	BNE bra_CB30
 	CLC
 	ADC #$09
@@ -1418,8 +1438,8 @@ bra_CB49:
 	JMP loc_CB05
 bra_CB63:
 	LDA #$58
-	STA ram_p1_hud_hp
-	STA ram_p2_hud_hp
+	STA ram_0062_hud_hp + 0  ; p1
+	STA ram_0062_hud_hp + 1  ; p2
 	RTS
 
 
@@ -1438,12 +1458,12 @@ bra_CB76_RTS:
 sub_CB77:
 	JSR sub_F84D
 	LDA #$00
-	JSR sub_FD25
-	LDA ram_btn_hold
+	JSR sub_FD25_read_gamepad_changes
+	LDA ram_00B6_btn_hold
 	CMP #con_btns_debug
 	BNE bra_CB8C
 	LDA #con_GM_debug
-	STA ram_current_game_mode
+	STA ram_000E_current_game_mode
 	JSR sub_DDAC
 bra_CB8C:
 	STA $7006
@@ -1463,7 +1483,7 @@ bra_CB96:
 	LDA #$10
 	STA ram_0020
 	PLA
-	STA ram_00B3
+	STA ram_00B3_temp
 loc_CBA4:
 	LDX ram_0020
 	LDA ram_0300,X
@@ -1584,7 +1604,7 @@ bra_CC8C:
 	DEX
 	BNE bra_CC8C
 	PHA
-	LDA ram_game_time
+	LDA ram_003E_game_time
 	BEQ bra_CC9A
 	JSR sub_CF9B
 bra_CC9A:
@@ -1900,10 +1920,10 @@ loc_CED7_RTS:
 sub_CED8:
 	STA ram_00BE
 	TAX
-	LDA ram_btn_press,X
-	STA ram_copy_btn_press
-	LDA ram_btn_hold,X
-	STA ram_copy_btn_hold
+	LDA ram_00B4_btn_press,X
+	STA ram_0021_btn_press_copy
+	LDA ram_00B6_btn_hold,X
+	STA ram_0022_btn_hold_copy
 	CPX #$00
 	BNE bra_CEEE
 	LDY #$40
@@ -2238,10 +2258,10 @@ bra_D133_RTS:
 sub_D134:
 	LDA ram_050E,X
 	BNE bra_D14B
-	LDA ram_copy_btn_press
-	CMP #con_btn___A
+	LDA ram_0021_btn_press_copy
+	CMP #con_act_A_pressed
 	BNE bra_D17B
-	LDA ram_copy_btn_hold
+	LDA ram_0022_btn_hold_copy
 	AND #con_btns_Dpad
 	CMP #con_btn_Right
 	BEQ bra_D14B
@@ -2276,7 +2296,7 @@ bra_D17E:
 	LDA #$23	; Throw SFX
 	JSR sub_sndload_noloop
 	STX ram_00BA
-	STY ram_00BB
+	STY ram_00BB_player_grabbed
 	LDA #$00
 	STA ram_00BC
 	STA ram_00BD
@@ -2298,7 +2318,7 @@ bra_D19C:
 	LDA tbl_D224,Y
 	STA ram_00BD
 bra_D1AC:
-	LDA ram_copy_btn_hold
+	LDA ram_0022_btn_hold_copy
 	AND #con_btn_Right
 	BNE bra_D1BE
 	LDA #$40
@@ -2319,12 +2339,12 @@ bra_D1BE:
 	STA ram_050C,X
 	LDA #$0C
 	STA ram_050F,X
-	LDY ram_00BB
+	LDY ram_00BB_player_grabbed
 	LDA ram_0302,X
 	STA ram_0302,Y
 	LDA ram_0304,X
 	STA ram_0304,Y
-	LDX ram_00BB
+	LDX ram_00BB_player_grabbed
 	JSR sub_EF22
 	LDY ram_00BA
 	LDA ram_0301,X
@@ -2348,7 +2368,7 @@ bra_D1BE:
 	STA ram_050C,X
 bra_D21D:
 	LDX ram_00BA
-	LDY ram_00BB
+	LDY ram_00BB_player_grabbed
 	LDA #$01
 	RTS
 
@@ -2433,8 +2453,8 @@ tbl_D224:
 sub_D26C:
 	LDA ram_050E,X
 	BNE bra_D27F
-	LDA ram_copy_btn_hold
-	AND #con_btns_AB_DU
+	LDA ram_0022_btn_hold_copy
+	AND #con_btns_AB_UD
 	BNE bra_D2B4
 	LDA ram_0300,X
 	AND #$40
@@ -2456,12 +2476,12 @@ bra_D297:
 	LDA ram_0301,X
 	AND #$40
 	BNE bra_D2A6
-	LDA ram_copy_btn_hold
+	LDA ram_0022_btn_hold_copy
 	CMP #con_btn_Left
 	BEQ bra_D2AE
 	BNE bra_D2B4
 bra_D2A6:
-	LDA ram_copy_btn_hold
+	LDA ram_0022_btn_hold_copy
 	CMP #con_btn_Right
 	BEQ bra_D2AE
 	BNE bra_D2B4
@@ -2512,7 +2532,7 @@ bra_D2ED_RTS:
 sub_D2EE:
 	LDA ram_050E,X
 	BNE bra_D301
-	LDA ram_copy_btn_hold
+	LDA ram_0022_btn_hold_copy
 	AND #con_btns_AB_U
 	BNE bra_D336
 	LDA ram_0300,X
@@ -2535,12 +2555,12 @@ bra_D319:
 	LDA ram_0301,X
 	AND #$40
 	BNE bra_D328
-	LDA ram_copy_btn_hold
+	LDA ram_0022_btn_hold_copy
 	CMP #con_btn_Left + con_btn_Down
 	BEQ bra_D330
 	BNE bra_D336
 bra_D328:
-	LDA ram_copy_btn_hold
+	LDA ram_0022_btn_hold_copy
 	CMP #con_btn_Right + con_btn_Down
 	BEQ bra_D330
 	BNE bra_D336
@@ -2583,7 +2603,7 @@ bra_D367:
 	BEQ bra_D36E
 	JMP loc_D40D
 bra_D36E:
-	LDA ram_copy_btn_hold
+	LDA ram_0022_btn_hold_copy
 	AND #con_btn_Down
 	BEQ bra_D381
 	LDA #$00
@@ -2592,11 +2612,11 @@ bra_D36E:
 	LDA #$01
 	JMP loc_D468
 bra_D381:
-	LDA ram_copy_btn_hold
+	LDA ram_0022_btn_hold_copy
 	AND #con_btn_Up
 	BEQ bra_D3B5
 	JSR sub_F0F1
-	LDA ram_copy_btn_hold
+	LDA ram_0022_btn_hold_copy
 	AND #con_btn_Right + con_btn_Left
 	BEQ bra_D3B0
 	AND #con_btn_Left
@@ -2622,7 +2642,7 @@ bra_D3B0:
 bra_D3B5:
 	LDA ram_050F,X
 	BNE bra_D40D
-	LDA ram_copy_btn_hold
+	LDA ram_0022_btn_hold_copy
 	AND #con_btn_Right + con_btn_Left
 	BEQ bra_D40D
 	AND #con_btn_Left
@@ -2649,8 +2669,8 @@ bra_D3E3:
 	AND #$04
 	BEQ bra_D400
 bra_D3EF:
-	LDA ram_copy_btn_hold
-	AND #con_btns_AB_DU
+	LDA ram_0022_btn_hold_copy
+	AND #con_btns_AB_UD
 	BNE bra_D40D
 	JSR sub_F0F1
 	JSR sub_EF22
@@ -2685,7 +2705,7 @@ bra_D42A:
 	LDA #$29
 	JMP loc_D450
 bra_D433:
-	LDA ram_copy_btn_hold
+	LDA ram_0022_btn_hold_copy
 	BNE bra_D46B_RTS
 	LDA ram_050F,X
 	AND #$08
@@ -2769,8 +2789,8 @@ bra_D4B4:
 	LDA #$39
 	JMP loc_D612
 bra_D4CF:
-	LDA ram_copy_btn_press
-	CMP #con_btn___A
+	LDA ram_0021_btn_press_copy
+	CMP #con_act_A_pressed
 	BNE bra_D489_RTS
 	LDA ram_0300,X
 	AND #$DF
@@ -2845,12 +2865,12 @@ bra_D54F:
 	BEQ bra_D560
 	JMP loc_D615_RTS
 bra_D560:
-	LDA ram_copy_btn_hold
+	LDA ram_0022_btn_hold_copy
 	AND #con_btn_Down   ; bzk optimize
 	CMP #con_btn_Down
 	BNE bra_D5DE
-	LDA ram_copy_btn_press
-	CMP #con_btn___B
+	LDA ram_0021_btn_press_copy
+	CMP #con_act_B_pressed
 	BNE bra_D5DE
 	LDA ram_0401,X
 	BNE bra_D578
@@ -2898,8 +2918,8 @@ bra_D5C4:
 	LDA ram_030B,X
 	CMP #$3D
 	BNE bra_D5DE
-	LDA ram_copy_btn_press
-	CMP #con_btn___A
+	LDA ram_0021_btn_press_copy
+	CMP #con_act_A_pressed
 	BNE bra_D615_RTS
 	LDA ram_0300,X
 	AND #$DF
@@ -2958,7 +2978,7 @@ sub_D616:
 bra_D62A:
 	LDA ram_0023
 	BNE bra_D66D
-	LDA ram_copy_btn_hold
+	LDA ram_0022_btn_hold_copy
 	AND #con_btn_Down
 	BNE bra_D639
 	LDA #$00
@@ -2970,7 +2990,7 @@ bra_D639:
 	AND #$04
 	BEQ bra_D66D
 bra_D645:
-	LDA ram_copy_btn_hold
+	LDA ram_0022_btn_hold_copy
 	AND #con_btn_Right + con_btn_Left
 	BEQ bra_D66D
 	AND #con_btn_Left
@@ -2984,7 +3004,7 @@ bra_D658:
 	AND #$40
 	BEQ bra_D66D
 bra_D65F:
-	LDA ram_copy_btn_hold
+	LDA ram_0022_btn_hold_copy
 	AND #con_btns_AB_U
 	BNE bra_D66D
 	JSR sub_F105
@@ -3058,7 +3078,7 @@ bra_D6D7:
 bra_D6DA:
 	JSR sub_FA96
 	DEC ram_0010
-	LDA ram_current_game_mode
+	LDA ram_000E_current_game_mode
 	CMP #con_GM_gameplay
 	BNE bra_D6EB
 	JSR sub_D724
@@ -3071,12 +3091,12 @@ bra_D6EB:
 	CMP #con_GM_VS
 	BNE bra_D6FD
 bra_D6F7:
-	JSR sub_C076
+	JSR sub_C076_GM_ending_continue_VS
 	JMP loc_D71B
 bra_D6FD:
 	CMP #con_GM_plr_select
 	BNE bra_D707
-	JSR sub_C100
+	JSR sub_C100_GM_player_select
 	JMP loc_D71B
 bra_D707:
 	CMP #con_GM_title
@@ -3110,7 +3130,7 @@ sub_D724:
 	STA ram_0072
 	RTS
 bra_D73B:
-	LDA ram_pause_flag
+	LDA ram_00FB_pause_state
 	BEQ bra_D743
 	JSR sub_D839
 	RTS
@@ -3130,7 +3150,7 @@ bra_D759:
 	BCC bra_D76C
 	JSR sub_F165
 	LDA #$00
-	JSR sub_FD25
+	JSR sub_FD25_read_gamepad_changes
 	JSR sub_E1BC
 loc_D768:
 	JSR sub_E337
@@ -3145,8 +3165,8 @@ bra_D76C:
 bra_D779:
 	LDA ram_002F
 	BEQ bra_D790
-	JSR sub_F797
-	LDA ram_game_time
+	JSR sub_F797_decrement_game_time
+	LDA ram_003E_game_time
 	BNE bra_D790
 	LDA #$00
 	STA ram_002F
@@ -3163,7 +3183,7 @@ loc_D793:
 	STA $2006
 	JSR sub_F85C_set_scroll_to_0
 	LDA #$00
-	JSR sub_FD25
+	JSR sub_FD25_read_gamepad_changes
 	LDX #$11
 	CLC
 bra_D7A6:
@@ -3172,12 +3192,12 @@ bra_D7A6:
 	BNE bra_D7A6
 	PHA
 	LDA #$01
-	JSR sub_FD25
+	JSR sub_FD25_read_gamepad_changes
 	LDA ram_00C6
 	BEQ bra_D7C6
-	LDA ram_btn_hold
+	LDA ram_00B6_btn_hold
 	BNE bra_D7BE
-	LDA ram_btn_hold + 1
+	LDA ram_00B6_btn_hold + 1
 	BEQ bra_D7C6
 bra_D7BE:
 	LDA #$FF
@@ -3188,13 +3208,13 @@ bra_D7BE:
 bra_D7C6:
 	LDA ram_002F
 	BEQ bra_D803
-	LDA ram_btn_press
-	CMP #con_btn___Start
+	LDA ram_00B4_btn_press + 0  ; p1
+	CMP #con_act_Start_pressed
 	BNE bra_D7E2
 
 	;+FOX: Don't reset background music on pause
 	LDA #$01
-	STA ram_pause_flag
+	STA ram_00FB_pause_state
 	lda #$00
 	sta $4000
 	sta $4004
@@ -3210,13 +3230,13 @@ bra_D7C6:
 bra_D7E2:
 	LDA ram_051E
 	BEQ bra_D7ED
-	LDA ram_btn_hold
+	LDA ram_00B6_btn_hold
 	CMP #con_btn_B + con_btn_A
 	BEQ bra_D7F8
 bra_D7ED:
 	LDA ram_054E
 	BEQ bra_D803
-	LDA ram_btn_hold + 1
+	LDA ram_00B6_btn_hold + 1
 	CMP #con_btn_B + con_btn_A
 	BNE bra_D803
 bra_D7F8:
@@ -3260,35 +3280,35 @@ sub_D839:
 	LDA #$00
 	STA $2005
 	STA $2005
-	LDA ram_pause_flag
+	LDA ram_00FB_pause_state
 	CMP #$02
 	BNE bra_D899
 	LDA #$03
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$0E
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$05
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #$00
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #$00
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
-	LDA ram_game_time
-	STA ram_00A5
+	LDA ram_003E_game_time
+	STA ram_00A5_hex_num_word + 0
 	LDA #$00
-	STA ram_00A6
-	JSR sub_FF53
+	STA ram_00A5_hex_num_word + 1
+	JSR sub_FF53_hex_to_dec_ascii
 	LDA #$03
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$0F
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$02
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #$AA
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #$00
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 	JSR sub_D8E8_set_scroll_to_0
 	LDA ram_0016
@@ -3298,7 +3318,7 @@ sub_D839:
 	lda #$F0
 	sta ram_ch_mute_mask
 	lda #$00
-	sta ram_pause_flag
+	sta ram_00FB_pause_state
 	lda #$0F
 	sta $4015
 	rts
@@ -3309,37 +3329,37 @@ bra_D899:
 	CMP #$20
 	BCC bra_D8BB
 	LDA #$03
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$0E
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$05
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #$00
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #$00
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 	JMP loc_D8D2
 bra_D8BB:
 	LDA #$03
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$0E
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$05
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #< tbl_D8E3_pause_txt
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #> tbl_D8E3_pause_txt
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 loc_D8D2:
 	JSR sub_D8E8_set_scroll_to_0
-	JSR sub_FD25
-	LDA ram_btn_press
-	CMP #con_btn___Start
+	JSR sub_FD25_read_gamepad_changes
+	LDA ram_00B4_btn_press + 0  ; p1
+	CMP #con_act_Start_pressed
 	BNE bra_D8E2
 	LDA #$02
-	STA ram_pause_flag
+	STA ram_00FB_pause_state
 bra_D8E2:
 	RTS
 
@@ -3369,12 +3389,12 @@ sub_D8F7_debug_mode:
 	STA $512B
                                         STA $5123
 	LDA #$00
-	JSR sub_FD25
+	JSR sub_FD25_read_gamepad_changes
 	LDA #$01
 	STA ram_00CD
 	LDX #$50
 	JSR sub_FFE5_garbage_loop_for_IRQ
-	LDA ram_irq_counter
+	LDA ram_000F_irq_counter
 	BNE bra_D91A_RTS
 	LDA #$00
 	STA ram_00CD
@@ -3428,10 +3448,10 @@ sub_D953_divide_by_20h:
 
 sub_D959_turn_IRQ_on:
 	LDA #$00
-	STA ram_irq_counter
-                                        STA ram_irq_data_index
-                                        LDA ram_camera_X
-                                        STA ram_copy_camera_X   ; copy scroll position from previous frame
+	STA ram_000F_irq_counter
+                                        STA ram_0038_irq_data_index
+                                        LDA ram_0039_camera_X
+                                        STA ram_0005_copy_camera_X   ; copy scroll position from previous frame
                                         LDA #$80
                                         STA $5204   ; enable irq for this frame
                                         LDA #$02
@@ -3639,7 +3659,7 @@ bra_DAC8:
 	STA ram_00A0
 	JSR sub_FD95
 	LDA ram_00A1
-	LDY ram_difficulty
+	LDY ram_00CA_difficulty
 	CMP tbl_DB64,Y
 	BCS bra_DAFC
 	LDA ram_050A,X
@@ -3662,7 +3682,7 @@ bra_DAFC:
 	STA ram_00A0
 	JSR sub_FD95
 	LDA ram_00A1
-	LDY ram_difficulty
+	LDY ram_00CA_difficulty
 	CMP tbl_DB6C,Y
 	BCS bra_DB23
 	LDA ram_050A,X
@@ -3681,7 +3701,7 @@ bra_DB23:
 	STA ram_00A0
 	JSR sub_FD95
 	LDA ram_00A1
-	LDY ram_difficulty
+	LDY ram_00CA_difficulty
 	CMP tbl_DB74,Y
 	BCS bra_DB3D
 	JSR sub_DB7C
@@ -4167,7 +4187,7 @@ bra_DDDD:
 	JSR sub_DFB5
 	JSR sub_FCD0
 bra_DDEA:
-	LDA ram_btn_hold
+	LDA ram_00B6_btn_hold
 	CMP #con_btns_debug
 	BEQ bra_DDEA
 	RTS
@@ -4181,7 +4201,7 @@ bra_DDF5_loop:
 	LDA ram_00D5
 	STA $5114,X
 ; !!! possible hacking protection table reading
-	LDA tbl_DEAB,X
+	LDA tbl_DEAB_hitbox_address_H,X
 	STA ram_0007
 	LDA #$00
 	STA ram_0006
@@ -4219,112 +4239,114 @@ loc_DE2F:
 	LDA ram_00D4
 	BNE bra_DE53
 	LDA ram_00D5
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$05
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$12
-	STA ram_00B2
-	LDA #< tbl_DEAD
-	STA ram_00AE
-	LDA #> tbl_DEAD
-	STA ram_00AF
+	STA ram_00B2_text_length
+	LDA #< tbl_DEAD_msg_prog_bank_ok
+	STA ram_00AE_text_ptr + 0  ; L
+	LDA #> tbl_DEAD_msg_prog_bank_ok
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 	JMP loc_DE8A
 bra_DE53:
 	LDA ram_00D5
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$05
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$13
-	STA ram_00B2
-	LDA #< tbl_DEBF
-	STA ram_00AE
-	LDA #> tbl_DEBF
-	STA ram_00AF
+	STA ram_00B2_text_length
+	LDA #< tbl_DEBF_msg_prog_bank_bad
+	STA ram_00AE_text_ptr + 0  ; L
+	LDA #> tbl_DEBF_msg_prog_bank_bad
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
-	STY ram_00A5
+	STY ram_00A5_hex_num_word + 0
 	LDA #$00
-	STA ram_00A6
-	JSR sub_FF53
+	STA ram_00A5_hex_num_word + 1
+	JSR sub_FF53_hex_to_dec_ascii
 	LDA ram_00D5
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$1A
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$02
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #$AA
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #$00
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 loc_DE8A:
-	STX ram_00A5
+	STX ram_00A5_hex_num_word + 0
 	LDA #$00
-	STA ram_00A6
-	JSR sub_FF53
+	STA ram_00A5_hex_num_word + 1
+	JSR sub_FF53_hex_to_dec_ascii
 	LDA ram_00D5
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$0F
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$01
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #$AB
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #$00
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 	RTS
 
 
 
-tbl_DEAB:
-	.byte $80   ; 
-	.byte $A0   ; 
+tbl_DEAB_hitbox_address_H:
+	.byte $80   ; p1: $8000
+	.byte $A0   ; p2: $A000
 
 
 
-tbl_DEAD:
-	.byte $50   ; 
-	.byte $52   ; 
-	.byte $4F   ; 
-	.byte $47   ; 
-	.byte $5C   ; 
-	.byte $42   ; 
-	.byte $41   ; 
-	.byte $4E   ; 
-	.byte $4B   ; 
-	.byte $5C   ; 
-	.byte $5C   ; 
-	.byte $5C   ; 
-	.byte $3D   ; 
-	.byte $3D   ; 
-	.byte $3E   ; 
-	.byte $5C   ; 
-	.byte $4F   ; 
-	.byte $4B   ; 
+tbl_DEAD_msg_prog_bank_ok:
+	.byte "PROG\BANK\\\==>\OK"   ; note: "\" = space
+;	.byte $50   ; 
+;	.byte $52   ; 
+;	.byte $4F   ; 
+;	.byte $47   ; 
+;	.byte $5C   ; 
+;	.byte $42   ; 
+;	.byte $41   ; 
+;	.byte $4E   ; 
+;	.byte $4B   ; 
+;	.byte $5C   ; 
+;	.byte $5C   ; 
+;	.byte $5C   ; 
+;	.byte $3D   ; 
+;	.byte $3D   ; 
+;	.byte $3E   ; 
+;	.byte $5C   ; 
+;	.byte $4F   ; 
+;	.byte $4B   ; 
 
 
 
-tbl_DEBF:
-	.byte $50   ; 
-	.byte $52   ; 
-	.byte $4F   ; 
-	.byte $47   ; 
-	.byte $5C   ; 
-	.byte $42   ; 
-	.byte $41   ; 
-	.byte $4E   ; 
-	.byte $4B   ; 
-	.byte $5C   ; 
-	.byte $5C   ; 
-	.byte $5C   ; 
-	.byte $3D   ; 
-	.byte $3D   ; 
-	.byte $3E   ; 
-	.byte $5C   ; 
-	.byte $42   ; 
-	.byte $41   ; 
-	.byte $44   ; 
+tbl_DEBF_msg_prog_bank_bad:
+	.byte "PROG\BANK\\\==>\BAD"  ; note: "\" = space
+;	.byte $50   ; 
+;	.byte $52   ; 
+;	.byte $4F   ; 
+;	.byte $47   ; 
+;	.byte $5C   ; 
+;	.byte $42   ; 
+;	.byte $41   ; 
+;	.byte $4E   ; 
+;	.byte $4B   ; 
+;	.byte $5C   ; 
+;	.byte $5C   ; 
+;	.byte $5C   ; 
+;	.byte $3D   ; 
+;	.byte $3D   ; 
+;	.byte $3E   ; 
+;	.byte $5C   ; 
+;	.byte $42   ; 
+;	.byte $41   ; 
+;	.byte $44   ; 
 
 
 
@@ -4390,59 +4412,59 @@ loc_DF10:
 	LDA ram_00D4
 	BNE bra_DF34
 	LDA ram_00D5
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$05
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$12
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #< tbl_DF90
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #> tbl_DF90
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 	JMP loc_DF6B
 bra_DF34:
 	LDA ram_00D5
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$05
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$13
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #< tbl_DFA2
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #> tbl_DFA2
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
-	STY ram_00A5
+	STY ram_00A5_hex_num_word + 0
 	LDA #$00
-	STA ram_00A6
-	JSR sub_FF53
+	STA ram_00A5_hex_num_word + 1
+	JSR sub_FF53_hex_to_dec_ascii
 	LDA ram_00D5
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$1A
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$03
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #$A9
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #$00
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 loc_DF6B:
-	STX ram_00A5
+	STX ram_00A5_hex_num_word + 0
 	LDA #$00
-	STA ram_00A6
-	JSR sub_FF53
+	STA ram_00A5_hex_num_word + 1
+	JSR sub_FF53_hex_to_dec_ascii
 	LDA ram_00D5
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$0F
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$01
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #$AB
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #$00
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 	RTS
 
@@ -4505,28 +4527,28 @@ sub_DFB5:
 	LDA ram_00CD
 	BEQ bra_DFD1
 	LDA #$11
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$05
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$12
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #< tbl_DFE9
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #> tbl_DFE9
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 	RTS
 bra_DFD1:
 	LDA #$11
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$05
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$13
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #< tbl_DFFB
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #> tbl_DFFB
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 	RTS
 
@@ -4645,57 +4667,57 @@ loc_E05C:
 	LDA #$00
 	JSR sub_FB97_clear_nametable
 	LDA #$0E
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$05
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$12
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #< tbl_E13B
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #> tbl_E13B
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 	JMP loc_E0E0
 bra_E0C4:
 	LDA #$00
 	JSR sub_FB97_clear_nametable
 	LDA #$0E
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$05
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$13
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #< tbl_E14D
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #> tbl_E14D
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 loc_E0E0:
 	LDA ram_00D4
 	BNE bra_E0FE
 	LDA #$0F
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$05
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$12
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #< tbl_E116
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #> tbl_E116
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 	JMP loc_E115_RTS
 bra_E0FE:
 	LDA #$0F
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$05
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$13
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #< tbl_E128
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #> tbl_E128
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 loc_E115_RTS:
 	RTS
@@ -5084,7 +5106,7 @@ bra_E34D:
 	STA $5114
 	LDA ram_0301,X
 	STA ram_0050
-	LDA ram_current_game_mode
+	LDA ram_000E_current_game_mode
 	CMP #con_GM_gameplay
 	BNE bra_E36E
 	LDA ram_030B,X
@@ -5206,7 +5228,7 @@ loc_E446:
 	LDA ram_030B,X
 	CMP #$16
 	BNE bra_E473
-	LDA ram_current_game_mode
+	LDA ram_000E_current_game_mode
 	CMP #con_GM_gameplay
 	BNE bra_E473
 	LDY ram_0503,X
@@ -5714,7 +5736,7 @@ tbl_E7A0_spr_colors:
 sub_E7E9_draw_screen:
     STX ram_0000
     LDA #$00
-    STA ram_camera_X
+    STA ram_0039_camera_X
     LDA #$88    ; 0x010010
     STA $5114
     JSR sub_0x010010_draw_screen
@@ -6134,7 +6156,7 @@ bra_EA41:
 	LDA (ram_0000),Y
 	STA ram_0025
 	LDY ram_050A,X
-	LDA tbl_C00B,Y
+	LDA tbl_C00B_chr_bank_ofs,Y
 	CLC
 	ADC ram_0025
 	STA ram_0025
@@ -6158,7 +6180,7 @@ bra_EA70:
 	LDA (ram_0000),Y
 	STA ram_0026
 	LDY ram_050A,X
-	LDA tbl_C00B,Y
+	LDA tbl_C00B_chr_bank_ofs,Y
 	CLC
 	ADC ram_0026
 	STA ram_0026
@@ -6172,19 +6194,19 @@ sub_EA80:
 	BEQ bra_EA87
 	RTS
 bra_EA87:
-	LDA ram_p1_hud_hp
+	LDA ram_0062_hud_hp + 0  ; p1
 	BEQ bra_EAD3_check_p2
 	CMP ram_p1_hp
 	BEQ bra_EAD3_check_p2
 	BMI bra_EAD3_check_p2
-	DEC ram_p1_hud_hp
+	DEC ram_0062_hud_hp + 0  ; p1
 	LDA #$20
 	STA $2006
 	LDA #$44
 	STA $2006
 	LDA #$58
 	SEC
-	SBC ram_p1_hud_hp
+	SBC ram_0062_hud_hp + 0  ; p1
 	LSR
 	LSR
 	LSR
@@ -6197,14 +6219,14 @@ loc_EAA9:
 	DEX
 	JMP loc_EAA9
 bra_EAB4:
-	LDA ram_p1_hud_hp
+	LDA ram_0062_hud_hp + 0  ; p1
 	AND #$07
 	BEQ bra_EAC0
 	CLC
 	ADC #$02
 	STA $2007
 bra_EAC0:
-	LDA ram_p1_hud_hp
+	LDA ram_0062_hud_hp + 0  ; p1
 	LSR
 	LSR
 	LSR
@@ -6217,17 +6239,17 @@ loc_EAC8:
 	DEX
 	JMP loc_EAC8
 bra_EAD3_check_p2:
-	LDA ram_p2_hud_hp
+	LDA ram_0062_hud_hp + 1  ; p2
 	BEQ bra_EB1F
 	CMP ram_p2_hp
 	BMI bra_EB1F
 	BEQ bra_EB1F
-	DEC ram_p2_hud_hp
+	DEC ram_0062_hud_hp + 1  ; p2
 	LDA #$20
 	STA $2006
 	LDA #$51
 	STA $2006
-	LDA ram_p2_hud_hp
+	LDA ram_0062_hud_hp + 1  ; p2
 	LSR
 	LSR
 	LSR
@@ -6240,7 +6262,7 @@ loc_EAF2:
 	DEX
 	JMP loc_EAF2
 bra_EAFD:
-	LDA ram_p2_hud_hp
+	LDA ram_0062_hud_hp + 1  ; p2
 	AND #$07
 	BEQ bra_EB09
 	CLC
@@ -6249,7 +6271,7 @@ bra_EAFD:
 bra_EB09:
 	LDA #$58
 	SEC
-	SBC ram_p2_hud_hp
+	SBC ram_0062_hud_hp + 1  ; p2
 	LSR
 	LSR
 	LSR
@@ -6401,7 +6423,7 @@ sub_EBCD:
 	TSX
 	LDA ram_0107,X
 	SEC
-	SBC ram_btn_hold
+	SBC ram_00B6_btn_hold
 	CMP #$4E        ; !!! hacking protection, if A != 4E then you can't hit the opponent
 	BNE bra_EC0A_antihacking
 	LDY #$00
@@ -6507,15 +6529,15 @@ bra_ECB0:
 bra_ECB4:
 	LDA (ram_0008),Y
 	LSR
-	ROR ram_0019
+	ROR ram_0019_temp
 	LSR
-	ROR ram_0019
+	ROR ram_0019_temp
 	STA ram_0600,X
 	INX
 	INY
 	DEC ram_001A
 	BNE bra_ECB4
-	LDA ram_0019
+	LDA ram_0019_temp
 	LSR
 	LSR
 	STA ram_0600,X
@@ -7188,13 +7210,13 @@ loc_F077:
 
 
 sub_F07D_clear_nmt_for_lower_hud:
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$00
-	STA ram_00B1
-	STA ram_00AE
-	STA ram_00AF
+	STA ram_00B1_text_H_pos
+	STA ram_00AE_text_ptr + 0  ; L
+	STA ram_00AE_text_ptr + 1  ; H
 	LDA #$20
-	STA ram_00B2
+	STA ram_00B2_text_length
 	JSR sub_FF9D_write_to_ppu
 	RTS
 
@@ -7325,20 +7347,20 @@ sub_F131_print_points:
 	ASL
 	TAY
 	LDA ram_player_score,Y
-	STA ram_00A5
+	STA ram_00A5_hex_num_word + 0
 	LDA ram_player_score + 1,Y
-	STA ram_00A6
-	JSR sub_FF53
+	STA ram_00A5_hex_num_word + 1
+	JSR sub_FF53_hex_to_dec_ascii
 	LDA #$01
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA tbl_F15F,Y
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$A8
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #$00
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	LDA #$06
-	STA ram_00B2
+	STA ram_00B2_text_length
 	JSR sub_FF9D_write_to_ppu
 	PLA
 	TAY
@@ -7363,11 +7385,11 @@ sub_F165:
 	LDX ram_002E
 	LDA ram_050E,X
 	BNE bra_F18A
-	LDA ram_hud_height
+	LDA ram_002D_hud_height
 	CMP #$08
 	BCS bra_F18A
-	INC ram_hud_height
-	LDA ram_hud_height
+	INC ram_002D_hud_height
+	LDA ram_002D_hud_height
 	PHA
 	JSR sub_F07D_clear_nmt_for_lower_hud
 	PLA
@@ -7383,10 +7405,10 @@ bra_F18A:
 	LDX ram_002E
 	CPX #$10
 	BNE bra_F19D
-	INC ram_00F8
+	INC ram_00F8_rounds_won + 0  ; p1
 	JMP loc_F19F
 bra_F19D:
-	INC ram_00F9
+	INC ram_00F8_rounds_won + 1  ; p2
 loc_F19F:
 	JSR sub_F8F0
 	LDA ram_050E,X
@@ -7398,15 +7420,15 @@ bra_F1AD:
 	CMP #$04
 	BNE bra_F1CD
 	LDA #$1E
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$00
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$10
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #$00
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #$00
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 bra_F1CA:
 	JMP loc_F2E0
@@ -7414,31 +7436,31 @@ bra_F1CD:
 	CMP #$05
 	BNE bra_F20D
 	LDA #$04
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$09
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$04
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #< tbl_F2EC
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #> tbl_F2EC
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
-	LDA ram_game_time
-	STA ram_00A5
+	LDA ram_003E_game_time
+	STA ram_00A5_hex_num_word + 0
 	LDA #$00
-	STA ram_00A6
-	JSR sub_FF53
+	STA ram_00A5_hex_num_word + 1
+	JSR sub_FF53_hex_to_dec_ascii
 	LDA #$04
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$12
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$04
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #$AA
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #$00
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 	JMP loc_F2E0
 bra_F20D:
@@ -7451,51 +7473,51 @@ bra_F20D:
 	CMP #$B0
 	BNE bra_F23A
 	LDA #$05
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$09
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$07
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #< tbl_F2F5
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #> tbl_F2F5
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 	LDA #$C8
 	STA ram_bonus_score
 	BNE bra_F251
 bra_F23A:
 	LDA #$05
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$09
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$05
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #< tbl_F2F0
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #> tbl_F2F0
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 bra_F251:
 	LDA ram_bonus_score
-	STA ram_00A5
+	STA ram_00A5_hex_num_word + 0
 	LDA #$00
-	STA ram_00A6
-	JSR sub_FF53
+	STA ram_00A5_hex_num_word + 1
+	JSR sub_FF53_hex_to_dec_ascii
 	LDA #$05
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$11
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$05
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #$A9
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #$00
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 	LDA ram_bonus_score
 	CLC
-	ADC ram_game_time
+	ADC ram_003E_game_time
 	STA ram_bonus_score
 	LDA #$00
 	ADC #$00
@@ -7505,31 +7527,31 @@ bra_F283:
 	CMP #$07
 	BNE bra_F2C7
 	LDA #$07
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$09
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$05
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #< tbl_F2FC
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #> tbl_F2FC
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 	LDA ram_bonus_score
-	STA ram_00A5
+	STA ram_00A5_hex_num_word + 0
 	LDA ram_bonus_score + 1
-	STA ram_00A6
-	JSR sub_FF53
+	STA ram_00A5_hex_num_word + 1
+	JSR sub_FF53_hex_to_dec_ascii
 	LDA #$07
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$11
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$05
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #$A9
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #$00
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 	LDA #$78
 	STA ram_0010
@@ -7610,7 +7632,7 @@ bra_F30B:
 	LDA ram_bonus_score
 	BEQ bra_F37B
 bra_F319:
-	LDA ram_btn_hold
+	LDA ram_00B6_btn_hold
 	AND #con_btn_Start
 	BEQ bra_F334
 	LDA ram_player_score,X
@@ -7637,20 +7659,20 @@ bra_F334:
 	INC ram_player_score + 1,X
 bra_F347:
 	LDA ram_bonus_score
-	STA ram_00A5
+	STA ram_00A5_hex_num_word + 0
 	LDA ram_bonus_score + 1
-	STA ram_00A6
-	JSR sub_FF53
+	STA ram_00A5_hex_num_word + 1
+	JSR sub_FF53_hex_to_dec_ascii
 	LDA #$07
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$11
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$05
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #$A9
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #$00
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 	LDA #$28	; Score counter tick SFX
 	JSR sub_sndload_noloop
@@ -7791,66 +7813,66 @@ sub_F430:
 	LDA ram_050C,Y
 	CMP #$02
 	BEQ bra_F47B
-	INC ram_00EE,X
-	LDA ram_00EE,X
+	INC ram_00EE_btn_idle_counter,X
+	LDA ram_00EE_btn_idle_counter,X
 	CMP #$14
 	BCC bra_F44B
 	LDA #$00
-	STA ram_00F0,X
+	STA ram_00F0_btn_mash_counter,X
 bra_F44B:
-	LDA ram_btn_press,X
-	CMP #con_btn___A
+	LDA ram_00B4_btn_press,X
+	CMP #con_act_A_pressed
 	BEQ bra_F455
-	CMP #con_btn___B
+	CMP #con_act_B_pressed
 	BNE bra_F46C
 bra_F455:
-	CMP ram_00F2,X
+	CMP ram_00F2_ground_attack_type,X
 	BNE bra_F462
-	INC ram_00F0,X
+	INC ram_00F0_btn_mash_counter,X
 	LDA #$00
-	STA ram_00EE,X
+	STA ram_00EE_btn_idle_counter,X
 	JMP loc_F468
 bra_F462:
 	LDA #$00
-	STA ram_00F0,X
-	STA ram_00EE,X
+	STA ram_00F0_btn_mash_counter,X
+	STA ram_00EE_btn_idle_counter,X
 loc_F468:
-	LDA ram_btn_press,X
-	STA ram_00F2,X
+	LDA ram_00B4_btn_press,X
+	STA ram_00F2_ground_attack_type,X
 bra_F46C:
 	LDA ram_050C,Y
 	CMP #$02
 	BEQ bra_F47B
-	LDA ram_btn_hold,X
+	LDA ram_00B6_btn_hold,X
 	AND #con_btns_Dpad
-	CMP ram_00E0,X
+	CMP ram_00E0_Dpad_direction_3,X
 	BNE bra_F486
 bra_F47B:
-	LDA ram_00E6,X
+	LDA ram_00E6_Dpad_duration_3,X
 	CMP #$FF
 	BEQ bra_F4A0
-	INC ram_00E6,X
+	INC ram_00E6_Dpad_duration_3,X
 	JMP loc_F4A0
 bra_F486:
-	LDA ram_00E0,X
+	LDA ram_00E0_Dpad_direction_3,X
 	CMP #$00    ; bzk optimize
 	BEQ bra_F49C
-	LDA ram_00E2,X
-	STA ram_00E4,X
-	LDA ram_00E0,X
-	STA ram_00E2,X
-	LDA ram_00E8,X
-	STA ram_00EA,X
-	LDA ram_00E6,X
-	STA ram_00E8,X
+	LDA ram_00E2_Dpad_direction_2,X
+	STA ram_00E4_Dpad_direction_1,X
+	LDA ram_00E0_Dpad_direction_3,X
+	STA ram_00E2_Dpad_direction_2,X
+	LDA ram_00E8_Dpad_duration_2,X
+	STA ram_00EA_Dpad_duration_1,X
+	LDA ram_00E6_Dpad_duration_3,X
+	STA ram_00E8_Dpad_duration_2,X
 bra_F49C:
 	LDA #$00
-	STA ram_00E6,X
+	STA ram_00E6_Dpad_duration_3,X
 bra_F4A0:
 loc_F4A0:
-	LDA ram_btn_hold,X
+	LDA ram_00B6_btn_hold,X
 	AND #con_btns_Dpad
-	STA ram_00E0,X
+	STA ram_00E0_Dpad_direction_3,X
 	PLA
 	TAY
 	PLA
@@ -7864,12 +7886,12 @@ sub_F4AB:
 	JSR sub_F93B
 	JSR sub_EFEE_clear_0300_03CF
 	LDA #con_GM_VS
-	STA ram_current_game_mode
+	STA ram_000E_current_game_mode
                                         LDA #$0C
-                                        STA ram_irq_screen
+                                        STA ram_000C_irq_screen
 	LDA ram_002E
 	BEQ @not_a_defeat_screen
-                                        INC ram_irq_screen
+                                        INC ram_000C_irq_screen
 @not_a_defeat_screen:
 	LDX #$0A    ; VS screen
 	JSR sub_E7E9_draw_screen
@@ -7880,31 +7902,31 @@ sub_F4AB:
 	LDA ram_002E
 	CMP #$40
 	BNE bra_F4DF
-	LDA ram_p1_fighter
+	LDA ram_003B_fighter_id + 0  ; p1
 	CLC
 	ADC #$09
 	BNE bra_F4E1
 bra_F4DF:
-	LDA ram_p1_fighter
+	LDA ram_003B_fighter_id + 0  ; p1
 bra_F4E1:
 	JSR sub_E885
-	LDA ram_p1_fighter
+	LDA ram_003B_fighter_id + 0  ; p1
 	JSR sub_E783_select_colors_for_fighter
 	LDX #$40
 	JSR sub_F52C
 	LDA ram_002E
 	CMP #$10
 	BNE bra_F4FB
-	LDA ram_p2_fighter
+	LDA ram_003B_fighter_id + 1  ; p2
 	CLC
 	ADC #$09
 	BNE bra_F4FD
 bra_F4FB:
-	LDA ram_p2_fighter
+	LDA ram_003B_fighter_id + 1  ; p2
 bra_F4FD:
 	JSR sub_E885
-	LDA ram_p2_fighter
-	CMP ram_p1_fighter
+	LDA ram_003B_fighter_id + 1  ; p2
+	CMP ram_003B_fighter_id + 0  ; p1
 	BNE bra_F509
 	CLC
 	ADC #$09
@@ -7951,38 +7973,38 @@ sub_F54A_draw_continue_screen:
 	JSR sub_F93B
 	JSR sub_EFEE_clear_0300_03CF
 	LDA #con_GM_continue
-	STA ram_current_game_mode
+	STA ram_000E_current_game_mode
 	LDX #$0D    ; continue screen
 	JSR sub_E7E9_draw_screen
 	LDA #$1B
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$0B
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$06
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #< tbl_F609_text_credit
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #> tbl_F609_text_credit
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
-	LDA ram_credits
-	STA ram_00A5
+	LDA ram_00CB_credits
+	STA ram_00A5_hex_num_word + 0
 	LDA #$00
-	STA ram_00A6
-	JSR sub_FF53
+	STA ram_00A5_hex_num_word + 1
+	JSR sub_FF53_hex_to_dec_ascii
 	LDA #$1B
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$12
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$01
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #$AB
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #$00
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	JSR sub_FF9D_write_to_ppu
 	LDA #$0B
-	STA ram_irq_screen
+	STA ram_000C_irq_screen
 	LDA #$8A    ; 0x014010
 	STA $5114
 	LDX #$10
@@ -7997,14 +8019,14 @@ bra_F5AF:
 bra_F5B1:
 	STA ram_007F
 	TAY
-	LDA ram_p1_fighter,Y
+	LDA ram_003B_fighter_id,Y
 	CLC
 	ADC #$09
 	JSR sub_E885
-	LDA ram_p1_fighter,Y
+	LDA ram_003B_fighter_id,Y
 	CPY #$00
 	BEQ bra_F5CB
-	CMP ram_p1_fighter
+	CMP ram_003B_fighter_id + 0  ; p1
 	BNE bra_F5CB
 	CLC
 	ADC #$09
@@ -8028,7 +8050,7 @@ bra_F5F1:
 	LDA ram_0300,X
 	AND #$40
 	BNE bra_F601
-	LDA ram_btn_hold,Y
+	LDA ram_00B6_btn_hold,Y
 	AND #con_btn_Start + con_btn_B + con_btn_A
 	BEQ bra_F5F1
 	BNE bra_F603
@@ -8042,23 +8064,24 @@ bra_F603:
 
 
 tbl_F609_text_credit:
-	.byte $43   ; 
-	.byte $52   ; 
-	.byte $45   ; 
-	.byte $44   ; 
-	.byte $49   ; 
-	.byte $54   ; 
+	.byte "CREDIT"
+;	.byte $43   ; 
+;	.byte $52   ; 
+;	.byte $45   ; 
+;	.byte $44   ; 
+;	.byte $49   ; 
+;	.byte $54   ; 
 
 
 
 sub_F60F:
 	INC ram_050B,X
 	LDA #$00
-	STA ram_0024
-	LDA ram_copy_btn_press
-	CMP #con_btn___A
+	STA ram_0024_special_motion_id
+	LDA ram_0021_btn_press_copy
+	CMP #con_act_A_pressed
 	BEQ bra_F620
-	CMP #con_btn___B
+	CMP #con_act_B_pressed
 	BNE bra_F630
 bra_F620:
 	JSR sub_F677
@@ -8073,8 +8096,8 @@ bra_F630:
 	LDA ram_0300,X
 	AND #$20
 	BEQ bra_F667
-	LDA ram_copy_btn_press
-	CMP #con_btn___not_A
+	LDA ram_0021_btn_press_copy
+	CMP #con_act_A_released
 	BNE bra_F647
 	LDA #$01
 	JMP loc_F66C
@@ -8087,7 +8110,7 @@ bra_F650:
 	LDA ram_050B,X
 	CMP #$08
 	BCC bra_F667
-	BIT ram_copy_btn_hold
+	BIT ram_0022_btn_hold_copy
 	BPL bra_F660
 	LDA #$03
 	JMP loc_F66C    ; bzk optimize
@@ -8118,73 +8141,73 @@ sub_F677:
 bra_F682:
 	LDY #$01
 loc_F684:
-	LDA ram_00E8,Y
+	LDA ram_00E8_Dpad_duration_2,Y
 	CMP #$2D
 	BCC bra_F6E8
-	LDA ram_00E6,Y
+	LDA ram_00E6_Dpad_duration_3,Y
 	CMP #$06
 	BCS bra_F6E8
-	LDA ram_00E2,Y
+	LDA ram_00E2_Dpad_direction_2,Y
 	AND #$04
 	BEQ bra_F6AD
-	LDA ram_00E0,Y
+	LDA ram_00E0_Dpad_direction_3,Y
 	CMP #$08
 	BCC bra_F6AD
-	LDA ram_copy_btn_press
-	CMP #con_btn___B
+	LDA ram_0021_btn_press_copy
+	CMP #con_act_B_pressed
 	BNE bra_F6AD
 	LDA #$01
-	STA ram_0024
+	STA ram_0024_special_motion_id
 	JMP loc_F70A
 bra_F6AD:
 	LDA ram_0301,X
 	AND #$40
 	BNE bra_F6C2
-	LDA ram_00E2,Y
+	LDA ram_00E2_Dpad_direction_2,Y
 	AND #$02
 	BEQ bra_F6E8
-	LDA ram_00E0,Y
+	LDA ram_00E0_Dpad_direction_3,Y
 	CMP #$01
 	BEQ bra_F6D0
 bra_F6C2:
-	LDA ram_00E2,Y
+	LDA ram_00E2_Dpad_direction_2,Y
 	AND #$01
 	BEQ bra_F6E8
-	LDA ram_00E0,Y
+	LDA ram_00E0_Dpad_direction_3,Y
 	CMP #$02
 	BNE bra_F6E8
 bra_F6D0:
-	LDA ram_copy_btn_press
-	CMP #con_btn___A
+	LDA ram_0021_btn_press_copy
+	CMP #con_act_A_pressed
 	BNE bra_F6DD
 	LDA #$04
-	STA ram_0024
+	STA ram_0024_special_motion_id
 	JMP loc_F70A
 bra_F6DD:
-	CMP #con_btn___B
+	CMP #con_act_B_pressed
 	BNE bra_F6E8
 	LDA #$03
-	STA ram_0024
+	STA ram_0024_special_motion_id
 	JMP loc_F70A
 bra_F6E8:
 	JSR sub_F70D
-	LDA ram_0024
+	LDA ram_0024_special_motion_id
 	BNE bra_F70A
-	LDA ram_00F0,Y
+	LDA ram_00F0_btn_mash_counter,Y
 	CMP #$0A
 	BCC bra_F70A
-	LDA ram_copy_btn_press
-	CMP #con_btn___A
+	LDA ram_0021_btn_press_copy
+	CMP #con_act_A_pressed
 	BNE bra_F700
 	LDA #$0A
 	BNE bra_F708
 bra_F700:
-	LDA ram_copy_btn_press
-	CMP #con_btn___B
+	LDA ram_0021_btn_press_copy
+	CMP #con_act_B_pressed
 	BNE bra_F70A
 	LDA #$0B
 bra_F708:
-	STA ram_0024
+	STA ram_0024_special_motion_id
 bra_F70A:
 loc_F70A:
 	PLA
@@ -8195,24 +8218,24 @@ loc_F70A:
 
 sub_F70D:
 ; timer for performing hadouken?
-	LDA ram_00E6,Y
+	LDA ram_00E6_Dpad_duration_3,Y
 	CMP #$06
 	BCC bra_F719
 	LDA #$00
-	STA ram_0024
+	STA ram_0024_special_motion_id
 	RTS
 bra_F719:
 	LDA ram_0301,X
 	AND #$40
 	BNE bra_F729
-	LDA #< tbl_F76D
+	LDA #< tbl_F76D_L_side_motions
 	STA ram_0000
-	LDA #> tbl_F76D
+	LDA #> tbl_F76D_L_side_motions
 	JMP loc_F72F
 bra_F729:
-	LDA #< tbl_F782
+	LDA #< tbl_F782_R_side_motions
 	STA ram_0000
-	LDA #> tbl_F782
+	LDA #> tbl_F782_R_side_motions
 loc_F72F:
 	STA ram_0001
 	TXA
@@ -8225,19 +8248,19 @@ loc_F737_loop:
 	LDA (ram_0000),Y
 	CMP #$FF
 	BEQ bra_F764
-	CMP ram_00E4,X
+	CMP ram_00E4_Dpad_direction_1,X
 	BNE bra_F75C
 	INY
 	LDA (ram_0000),Y
-	CMP ram_00E2,X
+	CMP ram_00E2_Dpad_direction_2,X
 	BNE bra_F75D
 	INY
 	LDA (ram_0000),Y
-	CMP ram_00E0,X
+	CMP ram_00E0_Dpad_direction_3,X
 	BNE bra_F75E
 	INY
 	LDA (ram_0000),Y
-	CMP ram_copy_btn_press
+	CMP ram_0021_btn_press_copy
 	BNE bra_F75F
 	INY
 	LDA (ram_0000),Y
@@ -8256,7 +8279,7 @@ bra_F75F:
 bra_F764:
 	LDA #$00
 loc_F766:
-	STA ram_0024
+	STA ram_0024_special_motion_id
 	TXA
 	TAY
 	PLA
@@ -8265,78 +8288,79 @@ loc_F766:
 
 
 
-tbl_F76D:
-	.byte $04   ; 
-	.byte $05   ; 
-	.byte $01   ; 
-	.byte $01   ; 
-	.byte $08   ; 
-	.byte $04   ; 
-	.byte $05   ; 
-	.byte $01   ; 
-	.byte $03   ; 
-	.byte $09   ; 
-	.byte $04   ; 
-	.byte $06   ; 
-	.byte $02   ; 
-	.byte $03   ; 
-	.byte $07   ; 
-	.byte $01   ; 
-	.byte $05   ; 
-	.byte $01   ; 
-	.byte $01   ; 
-	.byte $06   ; 
+tbl_F76D_L_side_motions:	; $15(21) bytes / player is facing right
+				;	___	UDLR
+	.byte $04   ; 00	-D--	D	dir1
+	.byte $05   ; 01	-D-R	DF	dir2
+	.byte $01   ; 02	---R	F	dir3
+	.byte $01   ; 03	ram_0021_btn_press_copy: con_act_A_pressed (punch)
+	.byte $08   ; 04___	ram_0024_special_motion_id_special_motion_id
+	.byte $04   ; 05	-D--	D
+	.byte $05   ; 06	-D-R	DF
+	.byte $01   ; 07	---R	F
+	.byte $03   ; 08	ram_0021_btn_press_copy: con_act_B_pressed (kick)
+	.byte $09   ; 09___	ram_0024_special_motion_id_special_motion_id
+	.byte $04   ; 0A	-D--	D
+	.byte $06   ; 0B	-DL-	DB
+	.byte $02   ; 0C	--L-	B
+	.byte $03   ; 0D	ram_0021_btn_press_copy: con_act_B_pressed (kick)
+	.byte $07   ; 0E___	ram_0024_special_motion_id_special_motion_id
+	.byte $01   ; 0F	---R	F
+	.byte $05   ; 10	-D-R	DF
+	.byte $01   ; 11	---R	F
+	.byte $01   ; 12	ram_0021_btn_press_copy: con_act_A_pressed (punch)
+	.byte $06   ; 13___	ram_0024_special_motion_id_special_motion_id
+	.byte $FF   ; 14	
+
+
+
+tbl_F782_R_side_motions:
+	.byte $04   ; 00	-D--	D	dir1
+	.byte $06   ; 01	-DL-	DF	dir2
+	.byte $02   ; 02	--L-	F	dir3
+	.byte $01   ; 03	ram_0021_btn_press_copy: con_act_A_pressed (punch)
+	.byte $08   ; 04___	ram_0024_special_motion_id_special_motion_id
+	.byte $04   ; 05	-D--	D
+	.byte $06   ; 06	-DL-	DF
+	.byte $02   ; 07	--L-	F
+	.byte $03   ; 08	ram_0021_btn_press_copy: con_act_B_pressed (kick)
+	.byte $09   ; 09___	ram_0024_special_motion_id_special_motion_id
+	.byte $04   ; 0A	-D--	D
+	.byte $05   ; 0B	-D-R	DB
+	.byte $01   ; 0C	---R	B
+	.byte $03   ; 0D	ram_0021_btn_press_copy: con_act_B_pressed (kick)
+	.byte $07   ; 0E___	ram_0024_special_motion_id_special_motion_id
+	.byte $02   ; 0F	--L-	F
+	.byte $06   ; 10	-DL-	DF
+	.byte $02   ; 11	--L-	F
+	.byte $01   ; 12	ram_0021_btn_press_copy: con_act_A_pressed (punch)
+	.byte $06   ; 13___	ram_0024_special_motion_id_special_motion_id
 	.byte $FF   ; 
 
 
 
-tbl_F782:
-	.byte $04   ; 
-	.byte $06   ; 
-	.byte $02   ; 
-	.byte $01   ; 
-	.byte $08   ; 
-	.byte $04   ; 
-	.byte $06   ; 
-	.byte $02   ; 
-	.byte $03   ; 
-	.byte $09   ; 
-	.byte $04   ; 
-	.byte $05   ; 
-	.byte $01   ; 
-	.byte $03   ; 
-	.byte $07   ; 
-	.byte $02   ; 
-	.byte $06   ; 
-	.byte $02   ; 
-	.byte $01   ; 
-	.byte $06   ; 
-	.byte $FF   ; 
-
-
-
-sub_F797:
-	DEC ram_003D
+sub_F797_decrement_game_time:
+	DEC ram_003D_sub_counter
 	BNE @bra_F7C3_RTS
 
 	LDA #$2D
-	STA ram_003D
-	DEC ram_game_time
-	LDA ram_game_time
-	STA ram_00A5
+	STA ram_003D_sub_counter
+	DEC ram_003E_game_time
+	LDA ram_003E_game_time
+	STA ram_00A5_hex_num_word + 0
 	LDA #$00
-	STA ram_00A6
-	JSR sub_FF53
+	STA ram_00A5_hex_num_word + 1
+	JSR sub_FF53_hex_to_dec_ascii
 	LDA #$03
-	STA ram_00B0
+	STA ram_00B0_text_V_pos
 	LDA #$0F
-	STA ram_00B1
+	STA ram_00B1_text_H_pos
 	LDA #$02
-	STA ram_00B2
+	STA ram_00B2_text_length
 	LDA #$AA
-	STA ram_00AE
+	STA ram_00AE_text_ptr + 0  ; L
 	LDA #$00
-	STA ram_00AF
+	STA ram_00AE_text_ptr + 1  ; H
 	jsr sub_FF9D_write_to_ppu
 
 @bra_F7C3_RTS:
@@ -8347,7 +8371,7 @@ sub_F797:
 sub_F7C4:
 	LDA ram_0502,X
 	SEC
-	SBC ram_game_time
+	SBC ram_003E_game_time
 	CMP #$03
 	BCC bra_F7D3
 	LDA #$00
@@ -8357,7 +8381,7 @@ bra_F7D3:
 	CLC
 	ADC ram_0503,X
 	STA ram_0503,X
-	LDA ram_game_time
+	LDA ram_003E_game_time
 	STA ram_0502,X
 	RTS
 
@@ -8459,7 +8483,7 @@ sub_F842_bankswitch_to_music:
 	LDA #$8B    ; 0x016010
 	STA $5114
 	;LDA #$8C    ; 0x018010
-	lda ram_song_bank
+	lda ram_00D0_song_bank
 	STA $5115
 	RTS
 
@@ -8502,7 +8526,7 @@ bra_F867:
 bra_F882:
 	PLA
 	STA ram_00BA
-	LDA ram_camera_X
+	LDA ram_0039_camera_X
 	CLC
 	ADC ram_003A
 	CMP #$7F
@@ -8566,10 +8590,10 @@ sub_F8E1:
 	JSR sub_FA07
 	LDA ram_003A
 	BEQ bra_F8EF_RTS
-	LDA ram_camera_X
+	LDA ram_0039_camera_X
 	CLC
 	ADC ram_003A
-	STA ram_camera_X
+	STA ram_0039_camera_X
 bra_F8EF_RTS:
 	RTS
 
@@ -8578,21 +8602,21 @@ bra_F8EF_RTS:
 sub_F8F0:
 	LDA #$04
 	STA $2000
-	LDA ram_00F8
+	LDA ram_00F8_rounds_won + 0  ; p1
 	BEQ bra_F909
 	LDA #$02
 	JSR sub_F923
-	LDA ram_00F8
+	LDA ram_00F8_rounds_won + 0  ; p1
 	CMP #$02
 	BCC bra_F909
 	LDA #$01
 	JSR sub_F923
 bra_F909:
-	LDA ram_00F9
+	LDA ram_00F8_rounds_won + 1  ; p2
 	BEQ bra_F91D
 	LDA #$1D
 	JSR sub_F923
-	LDA ram_00F9
+	LDA ram_00F8_rounds_won + 1  ; p2
 	CMP #$02
 	BCC bra_F91D
 	LDA #$1E
@@ -8654,7 +8678,7 @@ loc_F968:
 	LDA (ram_000A),Y
 	CMP #$FF
 	BEQ bra_F9A0
-	CMP ram_0024
+	CMP ram_0024_special_motion_id
 	BNE bra_F999
 	INY
 	LDA (ram_000A),Y
@@ -8853,7 +8877,7 @@ sub_FA49:
 	LDA ram_0300,X
 	AND #$02
 	BEQ bra_FA93
-	LDA ram_copy_btn_hold
+	LDA ram_0022_btn_hold_copy
 	CMP #con_btn_Up + con_btn_Right
 	BNE bra_FA71
 	LDA ram_0302,X
@@ -9149,7 +9173,7 @@ bra_FCF7_infinite_loop:
 
 ; -----------------------------------------------------------------------------
 ; A = Player# index (0 or 1)
-sub_FD02_read_joysticks_regs:
+sub_FD02_read_gamepad_regs:
 	LDX #$01		; 1: parallel mode
 	STX $4016		; fill parallel inputs
 	DEX				; 0: serial mode
@@ -9160,103 +9184,122 @@ bra_FD0E:
 	LDA $4016,X		; Load all input data lines
 	AND #$03		; Keep only lines D0 & D1
 	CMP #$01		; Any presses? C=0:No/1:Yes
-	ROL ram_btn_rol
+	ROL ram_0014_btn_rol
 	DEY
 	BNE bra_FD0E	; Loop until Y = 0
-	LDA ram_btn_rol
+	LDA ram_0014_btn_rol
 	CMP #$18			; Was Up+Start pressed?
 	BNE bra_FD24_RTS	; Skip cheat if not
-	NOP					; (for future patching?)
+	NOP					; (for soft patching?)
 	STY ram_p2_hp   	; Apply cheat - Clear P2 hp
 bra_FD24_RTS:
 	RTS
 
 
 
-sub_FD25:
-	CMP #$01		; If A=1, keep it!
-	BEQ bra_FD2B
-	LDA #$00		;  else clear to 0
-bra_FD2B:
+sub_FD25_read_gamepad_changes:
+	CMP #$01
+	lda #$00		; if A >= 01 then A = 01		; +Eriknoc: optimized (saves 1 byte, loses 1 cycle if A=00)
+	rol												; +
+;	BEQ bra_FD2B	; if A = 01 then keep it!		; -Eriknoc: original
+;	LDA #$00		; else A = 00					; -
+;bra_FD2B:
 	PHA
-	JSR sub_FD02_read_joysticks_regs
+	JSR sub_FD02_read_gamepad_regs
 	PLA
 	TAX
-	LDA ram_btn_rol
-	CMP ram_btn_hold,X
-	BNE bra_FD3C
-	LDA #con_btn___nothing
-	JMP loc_FD8E_write_button
-bra_FD3C:
-	LDA ram_btn_rol
-	EOR ram_btn_hold,X
-	ASL
-	BCC bra_FD53
-	LDA ram_btn_rol
-	AND #con_btn_A
-	BEQ bra_FD4E
-	LDA #con_btn___A
-	JMP loc_FD8E_write_button
+; test change
+	LDA ram_0014_btn_rol ;ABsSUDLR	;3
+	CMP ram_00B6_btn_hold,X			;4	 =  7 cycles
+	BNE bra_FD3C_find_change		;2 3
+; no change
+	LDA #con_act_none				;2
+	beq loc_FD8E_store_change		;3	 = 14 cycles				; /Eriknoc: replaced JMP
+	
+bra_FD3C_find_change:
+	LDA ram_0014_btn_rol ;ABsSUDLR	;3
+	EOR ram_00B6_btn_hold,X			;4	 = 17 cycles
+
+;;;_;;;;_test_A:
+	ASL								;2	 = 19 cycles	A BsSUDLR0
+	BCC bra_FD53_test_B				;2 3
+
+	LDA ram_0014_btn_rol ;ABsSUDLR	;3 3
+	AND #con_btn_A       ;10000000	;2 2 = 26 cycles
+	BEQ bra_FD4E					;2 3
+	LDA #con_act_A_pressed			;2
+	bne loc_FD8E_store_change		;3	 = 33 cycles				; /Eriknoc: replaced JMP
 bra_FD4E:
-	LDA #con_btn___not_A
-	JMP loc_FD8E_write_button
-bra_FD53:
-	ASL
-	BCC bra_FD66
-	LDA ram_btn_rol
-	AND #con_btn_B
-	BEQ bra_FD61
-	LDA #con_btn___B
-	JMP loc_FD8E_write_button
+	LDA #con_act_A_released			;  2
+	bne loc_FD8E_store_change		;  3 = 34 cycles	; 17 bytes	; /Eriknoc: replaced JMP
+
+bra_FD53_test_B:
+	ASL								;2	 = 24 cycles	B sSUDLR00
+	BCC bra_FD66_test_Select		;2 3
+
+	LDA ram_0014_btn_rol ;ABsSUDLR	;3 3
+	AND #con_btn_B       ;01000000	;2 2 = 32 cycles
+	BEQ bra_FD61					;2 3
+	LDA #con_act_B_pressed			;2
+	bne loc_FD8E_store_change		;3	 = 39 cycles				; /Eriknoc: replaced JMP
 bra_FD61:
-	LDA #con_btn___not_B
-	JMP loc_FD8E_write_button
-bra_FD66:
-	ASL
-	BCC bra_FD79
-	LDA ram_btn_rol
-	AND #con_btn_Select
-	BEQ bra_FD74
-	LDA #con_btn___Select
-	JMP loc_FD8E_write_button
+	LDA #con_act_B_released			;  2
+	bne loc_FD8E_store_change		;  3 = 40 cycles	; 17 bytes	; /Eriknoc: replaced JMP
+
+bra_FD66_test_Select:
+	ASL								;2	 = 29 cycles	s SUDLR000
+	BCC bra_FD79_test_Start			;2 3
+
+	LDA ram_0014_btn_rol ;ABsSUDLR	;3 3
+	AND #con_btn_Select  ;00100000	;2 2 = 36 cycles
+	BEQ bra_FD74					;2 3
+	LDA #con_act_Select_pressed		;2
+	bne loc_FD8E_store_change		;3	 = 43 cycles				; /Eriknoc: replaced JMP
 bra_FD74:
-	LDA #con_btn___not_Select
-	JMP loc_FD8E_write_button
-bra_FD79:
-	ASL
-	BCC bra_FD8C
-	LDA ram_btn_rol
-	AND #con_btn_Start
-	BEQ bra_FD87
-	LDA #con_btn___Start
-	JMP loc_FD8E_write_button
+	LDA #con_act_Select_released	;  2
+	bne loc_FD8E_store_change		;  3 = 44 cycles	; 17 bytes	; /Eriknoc: replaced JMP
+
+bra_FD79_test_Start:
+	ASL								;2	 = 34 cycles	S UDLR0000
+	BCC bra_FD8C_Dpad_changed		;2 3
+
+	LDA ram_0014_btn_rol ;ABsSUDLR	;3 3
+	AND #con_btn_Start   ;00010000	;2 2 = 41 cycles
+	BEQ bra_FD87					;2 3
+	LDA #con_act_Start_pressed		;2
+	bne loc_FD8E_store_change		;3	 = 48 cycles				; /Eriknoc: replaced JMP
 bra_FD87:
-	LDA #con_btn___not_Start
-	JMP loc_FD8E_write_button
-bra_FD8C:
-	LDA #con_btn___Dpad
-loc_FD8E_write_button:
-	STA ram_btn_press,X
-	LDA ram_btn_rol
-	STA ram_btn_hold,X
+	LDA #con_act_Start_released		;  2
+	bne loc_FD8E_store_change		;  3 = 49 cycles	; 17 bytes	; /Eriknoc: replaced JMP  68 (77 w JMP's)
+
+bra_FD8C_Dpad_changed:
+	LDA #con_act_Dpad_changed		;2	 = 39 cycles
+loc_FD8E_store_change:
+	STA ram_00B4_btn_press,X
+	LDA ram_0014_btn_rol ;ABsSUDLR
+	STA ram_00B6_btn_hold,X
 	RTS
+;_cycles(dec)______________________________
+; A  B  s  S   change state:  |  none  Dpad
+; 33 39 43 48  pressed        |  14    39
+; 34 40 44 49  released       |
 
 
 
 sub_FD95:
 	TXA
 	PHA
-	INC ram_00FF
-	LDA ram_00FF
+	INC ram_00FF_FDC0_tbl_index
+	LDA ram_00FF_FDC0_tbl_index
 	ADC ram_0010
 	ADC ram_0104
 	ADC ram_0140
 	ADC ram_0180
 	ADC ram_01F0
 	AND #$3F
-	STA ram_00FF
+	STA ram_00FF_FDC0_tbl_index
 	TAX
-	LDA tbl_FDC0,X
+	LDA tbl_FDC0,X	; index range is $00-3F  ; table values are $00-3F
 loc_FDB1:
 	CMP ram_00A0
 	BCC bra_FDBB
@@ -9271,353 +9314,353 @@ bra_FDBB:
 
 
 
-tbl_FDC0:
-	.byte $1A   ; 
-	.byte $02   ; 
-	.byte $26   ; 
-	.byte $00   ; 
-	.byte $08   ; 
-	.byte $0D   ; 
-	.byte $3B   ; 
-	.byte $0F   ; 
-	.byte $20   ; 
-	.byte $16   ; 
-	.byte $2C   ; 
-	.byte $1E   ; 
-	.byte $33   ; 
-	.byte $1F   ; 
-	.byte $3C   ; 
-	.byte $10   ; 
-	.byte $25   ; 
-	.byte $21   ; 
-	.byte $3F   ; 
-	.byte $17   ; 
-	.byte $2F   ; 
-	.byte $1B   ; 
-	.byte $12   ; 
-	.byte $1D   ; 
-	.byte $2E   ; 
-	.byte $35   ; 
-	.byte $2C   ; 
-	.byte $07   ; 
-	.byte $3B   ; 
-	.byte $28   ; 
-	.byte $31   ; 
-	.byte $03   ; 
-	.byte $0B   ; 
-	.byte $29   ; 
-	.byte $14   ; 
-	.byte $3E   ; 
-	.byte $06   ; 
-	.byte $2B   ; 
-	.byte $09   ; 
-	.byte $1C   ; 
-	.byte $39   ; 
-	.byte $13   ; 
-	.byte $32   ; 
-	.byte $18   ; 
-	.byte $04   ; 
-	.byte $27   ; 
-	.byte $2E   ; 
-	.byte $34   ; 
-	.byte $27   ; 
-	.byte $19   ; 
-	.byte $0A   ; 
-	.byte $24   ; 
-	.byte $03   ; 
-	.byte $2C   ; 
-	.byte $05   ; 
-	.byte $3A   ; 
-	.byte $3B   ; 
-	.byte $22   ; 
-	.byte $3E   ; 
-	.byte $11   ; 
-	.byte $15   ; 
-	.byte $0C   ; 
-	.byte $01   ; 
-	.byte $3D   ; 
+tbl_FDC0:	; $40(64) bytes  ; table values are $00-3F
+	.byte $1A   ; 00
+	.byte $02   ; 01
+	.byte $26   ; 02
+	.byte $00   ; 03
+	.byte $08   ; 04
+	.byte $0D   ; 05
+	.byte $3B   ; 06
+	.byte $0F   ; 07
+	.byte $20   ; 08
+	.byte $16   ; 09
+	.byte $2C   ; 0A
+	.byte $1E   ; 0B
+	.byte $33   ; 0C
+	.byte $1F   ; 0D
+	.byte $3C   ; 0E
+	.byte $10   ; 0F
+	.byte $25   ; 10
+	.byte $21   ; 11
+	.byte $3F   ; 12
+	.byte $17   ; 13
+	.byte $2F   ; 14
+	.byte $1B   ; 15
+	.byte $12   ; 16
+	.byte $1D   ; 17
+	.byte $2E   ; 18
+	.byte $35   ; 19
+	.byte $2C   ; 1A
+	.byte $07   ; 1B
+	.byte $3B   ; 1C
+	.byte $28   ; 1D
+	.byte $31   ; 1E
+	.byte $03   ; 1F
+	.byte $0B   ; 20
+	.byte $29   ; 21
+	.byte $14   ; 22
+	.byte $3E   ; 23
+	.byte $06   ; 24
+	.byte $2B   ; 25
+	.byte $09   ; 26
+	.byte $1C   ; 27
+	.byte $39   ; 28
+	.byte $13   ; 29
+	.byte $32   ; 2A
+	.byte $18   ; 2B
+	.byte $04   ; 2C
+	.byte $27   ; 2D
+	.byte $2E   ; 2E
+	.byte $34   ; 2F
+	.byte $27   ; 30
+	.byte $19   ; 31
+	.byte $0A   ; 32
+	.byte $24   ; 33
+	.byte $03   ; 34
+	.byte $2C   ; 35
+	.byte $05   ; 36
+	.byte $3A   ; 37
+	.byte $3B   ; 38
+	.byte $22   ; 39
+	.byte $3E   ; 3A
+	.byte $11   ; 3B
+	.byte $15   ; 3C
+	.byte $0C   ; 3D
+	.byte $01   ; 3E
+	.byte $3D   ; 3F
 
 
 
-tbl_FE00:
-	.byte $F7   ; 
-	.byte $BC   ; 
-	.byte $68   ; 
-	.byte $D1   ; 
-	.byte $A8   ; 
-	.byte $CB   ; 
-	.byte $A3   ; 
-	.byte $E8   ; 
-	.byte $87   ; 
-	.byte $F4   ; 
-	.byte $10   ; 
-	.byte $96   ; 
-	.byte $60   ; 
-	.byte $BC   ; 
-	.byte $95   ; 
-	.byte $82   ; 
-	.byte $E8   ; 
-	.byte $09   ; 
-	.byte $4F   ; 
-	.byte $4E   ; 
-	.byte $C2   ; 
-	.byte $EC   ; 
-	.byte $94   ; 
-	.byte $FF   ; 
-	.byte $38   ; 
-	.byte $E0   ; 
-	.byte $87   ; 
-	.byte $E0   ; 
-	.byte $38   ; 
-	.byte $45   ; 
-	.byte $21   ; 
-	.byte $60   ; 
-	.byte $23   ; 
-	.byte $8C   ; 
-	.byte $8F   ; 
-	.byte $20   ; 
-	.byte $5D   ; 
-	.byte $3C   ; 
-	.byte $1C   ; 
-	.byte $B0   ; 
-	.byte $1F   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $E0   ; 
-	.byte $56   ; 
-	.byte $00   ; 
-	.byte $CE   ; 
-	.byte $F1   ; 
-	.byte $80   ; 
-	.byte $E2   ; 
-	.byte $9E   ; 
-	.byte $42   ; 
-	.byte $FE   ; 
-	.byte $A4   ; 
-	.byte $83   ; 
-	.byte $64   ; 
-	.byte $E3   ; 
-	.byte $57   ; 
-	.byte $D9   ; 
-	.byte $FC   ; 
-	.byte $FC   ; 
-	.byte $68   ; 
-	.byte $8A   ; 
-	.byte $40   ; 
-	.byte $80   ; 
-	.byte $50   ; 
-	.byte $7C   ; 
-	.byte $CC   ; 
-	.byte $A0   ; 
-	.byte $42   ; 
-	.byte $EF   ; 
-	.byte $33   ; 
-	.byte $E8   ; 
-	.byte $97   ; 
-	.byte $D0   ; 
-	.byte $81   ; 
-	.byte $65   ; 
-	.byte $05   ; 
-	.byte $4E   ; 
-	.byte $49   ; 
-	.byte $5B   ; 
-	.byte $08   ; 
-	.byte $FE   ; 
-	.byte $F4   ; 
-	.byte $63   ; 
-	.byte $40   ; 
-	.byte $E0   ; 
-	.byte $C8   ; 
-	.byte $8A   ; 
-	.byte $5F   ; 
-	.byte $AA   ; 
-	.byte $AD   ; 
-	.byte $58   ; 
-	.byte $06   ; 
-	.byte $2B   ; 
-	.byte $12   ; 
-	.byte $82   ; 
-	.byte $72   ; 
-	.byte $29   ; 
-	.byte $87   ; 
-	.byte $3C   ; 
-	.byte $C1   ; 
-	.byte $C9   ; 
-	.byte $25   ; 
-	.byte $01   ; 
-	.byte $36   ; 
-	.byte $B8   ; 
-	.byte $09   ; 
-	.byte $29   ; 
-	.byte $C0   ; 
-	.byte $6D   ; 
-	.byte $A1   ; 
-	.byte $E0   ; 
-	.byte $9E   ; 
-	.byte $A0   ; 
-	.byte $E9   ; 
-	.byte $9C   ; 
-	.byte $00   ; 
-	.byte $B0   ; 
-	.byte $F0   ; 
-	.byte $09   ; 
-	.byte $0D   ; 
-	.byte $4F   ; 
-	.byte $43   ; 
-	.byte $80   ; 
-	.byte $03   ; 
-	.byte $40   ; 
-	.byte $EA   ; 
-	.byte $F8   ; 
-	.byte $9F   ; 
-	.byte $57   ; 
-	.byte $7C   ; 
-	.byte $48   ; 
-	.byte $D8   ; 
-	.byte $C8   ; 
-	.byte $C7   ; 
-	.byte $91   ; 
-	.byte $91   ; 
-	.byte $00   ; 
-	.byte $38   ; 
-	.byte $00   ; 
-	.byte $01   ; 
-	.byte $1C   ; 
+tbl_FE00: ; $100(256) bytes
+	.byte $F7   ; 00
+	.byte $BC   ; 01
+	.byte $68   ; 02
+	.byte $D1   ; 03
+	.byte $A8   ; 04
+	.byte $CB   ; 05
+	.byte $A3   ; 06
+	.byte $E8   ; 07
+	.byte $87   ; 08
+	.byte $F4   ; 09
+	.byte $10   ; 0A
+	.byte $96   ; 0B
+	.byte $60   ; 0C
+	.byte $BC   ; 0D
+	.byte $95   ; 0E
+	.byte $82   ; 0F
+	.byte $E8   ; 10
+	.byte $09   ; 11
+	.byte $4F   ; 12
+	.byte $4E   ; 13
+	.byte $C2   ; 14
+	.byte $EC   ; 15
+	.byte $94   ; 16
+	.byte $FF   ; 17
+	.byte $38   ; 18
+	.byte $E0   ; 19
+	.byte $87   ; 1A
+	.byte $E0   ; 1B
+	.byte $38   ; 1C
+	.byte $45   ; 1D
+	.byte $21   ; 1E
+	.byte $60   ; 1F
+	.byte $23   ; 20
+	.byte $8C   ; 21
+	.byte $8F   ; 22
+	.byte $20   ; 23
+	.byte $5D   ; 24
+	.byte $3C   ; 25
+	.byte $1C   ; 26
+	.byte $B0   ; 27
+	.byte $1F   ; 28
+	.byte $00   ; 29
+	.byte $00   ; 2A
+	.byte $00   ; 2B
+	.byte $00   ; 2C
+	.byte $00   ; 2D
+	.byte $E0   ; 2E
+	.byte $56   ; 2F
+	.byte $00   ; 30
+	.byte $CE   ; 31
+	.byte $F1   ; 32
+	.byte $80   ; 33
+	.byte $E2   ; 34
+	.byte $9E   ; 35
+	.byte $42   ; 36
+	.byte $FE   ; 37
+	.byte $A4   ; 38
+	.byte $83   ; 39
+	.byte $64   ; 3A
+	.byte $E3   ; 3B
+	.byte $57   ; 3C
+	.byte $D9   ; 3D
+	.byte $FC   ; 3E
+	.byte $FC   ; 3F
+	.byte $68   ; 40
+	.byte $8A   ; 41
+	.byte $40   ; 42
+	.byte $80   ; 43
+	.byte $50   ; 44
+	.byte $7C   ; 45
+	.byte $CC   ; 46
+	.byte $A0   ; 47
+	.byte $42   ; 48
+	.byte $EF   ; 49
+	.byte $33   ; 4A
+	.byte $E8   ; 4B
+	.byte $97   ; 4C
+	.byte $D0   ; 4D
+	.byte $81   ; 4E
+	.byte $65   ; 4F
+	.byte $05   ; 50
+	.byte $4E   ; 51
+	.byte $49   ; 52
+	.byte $5B   ; 53
+	.byte $08   ; 54
+	.byte $FE   ; 55
+	.byte $F4   ; 56
+	.byte $63   ; 57
+	.byte $40   ; 58
+	.byte $E0   ; 59
+	.byte $C8   ; 5A
+	.byte $8A   ; 5B
+	.byte $5F   ; 5C
+	.byte $AA   ; 5D
+	.byte $AD   ; 5E
+	.byte $58   ; 5F
+	.byte $06   ; 60
+	.byte $2B   ; 61
+	.byte $12   ; 62
+	.byte $82   ; 63
+	.byte $72   ; 64
+	.byte $29   ; 65
+	.byte $87   ; 66
+	.byte $3C   ; 67
+	.byte $C1   ; 68
+	.byte $C9   ; 69
+	.byte $25   ; 6A
+	.byte $01   ; 6B
+	.byte $36   ; 6C
+	.byte $B8   ; 6D
+	.byte $09   ; 6E
+	.byte $29   ; 6F
+	.byte $C0   ; 70
+	.byte $6D   ; 71
+	.byte $A1   ; 72
+	.byte $E0   ; 73
+	.byte $9E   ; 74
+	.byte $A0   ; 75
+	.byte $E9   ; 76
+	.byte $9C   ; 77
+	.byte $00   ; 78
+	.byte $B0   ; 79
+	.byte $F0   ; 7A
+	.byte $09   ; 7B
+	.byte $0D   ; 7C
+	.byte $4F   ; 7D
+	.byte $43   ; 7E
+	.byte $80   ; 7F
+	.byte $03   ; 80
+	.byte $40   ; 81
+	.byte $EA   ; 82
+	.byte $F8   ; 83
+	.byte $9F   ; 84
+	.byte $57   ; 85
+	.byte $7C   ; 86
+	.byte $48   ; 87
+	.byte $D8   ; 88
+	.byte $C8   ; 89
+	.byte $C7   ; 8A
+	.byte $91   ; 8B
+	.byte $91   ; 8C
+	.byte $00   ; 8D
+	.byte $38   ; 8E
+	.byte $00   ; 8F
+	.byte $01   ; 90
+	.byte $1C   ; 91
 ; !!!
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $68   ; 
-	.byte $E2   ; 
-	.byte $0A   ; 
-	.byte $09   ; 
-	.byte $27   ; 
-	.byte $FE   ; 
-	.byte $60   ; 
-	.byte $B0   ; 
-	.byte $C4   ; 
-	.byte $10   ; 
-	.byte $90   ; 
-	.byte $90   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $7C   ; 
-	.byte $23   ; 
-	.byte $4C   ; 
-	.byte $40   ; 
-	.byte $39   ; 
-	.byte $23   ; 
-	.byte $4C   ; 
-	.byte $00   ; 
-	.byte $21   ; 
-	.byte $00   ; 
-	.byte $18   ; 
-	.byte $00   ; 
-	.byte $D8   ; 
-	.byte $00   ; 
-	.byte $03   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $40   ; 
-	.byte $00   ; 
-	.byte $08   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $0E   ; 
-	.byte $03   ; 
-	.byte $80   ; 
-	.byte $BC   ; 
-	.byte $80   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $F3   ; 
-	.byte $00   ; 
-	.byte $FF   ; 
-	.byte $00   ; 
-	.byte $33   ; 
-	.byte $00   ; 
-	.byte $F3   ; 
-	.byte $00   ; 
-	.byte $C8   ; 
-	.byte $00   ; 
-	.byte $40   ; 
-	.byte $00   ; 
-	.byte $60   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $FF   ; 
-	.byte $A8   ; 
-	.byte $9F   ; 
-	.byte $05   ; 
-	.byte $9F   ; 
-	.byte $FF   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $08   ; 
-	.byte $ED   ; 
-	.byte $31   ; 
-	.byte $ED   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $54   ; 
-	.byte $04   ; 
-	.byte $E0   ; 
-	.byte $00   ; 
-	.byte $08   ; 
-	.byte $7F   ; 
-	.byte $9D   ; 
-	.byte $00   ; 
-	.byte $01   ; 
-	.byte $00   ; 
-	.byte $E2   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $FF   ; 
-	.byte $A8   ; 
-	.byte $9F   ; 
-	.byte $7F   ; 
-	.byte $39   ; 
-	.byte $90   ; 
-	.byte $28   ; 
-	.byte $00   ; 
-	.byte $28   ; 
-	.byte $33   ; 
-	.byte $00   ; 
+	.byte $00   ; 92
+	.byte $00   ; 93
+	.byte $68   ; 94
+	.byte $E2   ; 95
+	.byte $0A   ; 96
+	.byte $09   ; 97
+	.byte $27   ; 98
+	.byte $FE   ; 99
+	.byte $60   ; 9A
+	.byte $B0   ; 9B
+	.byte $C4   ; 9C
+	.byte $10   ; 9D
+	.byte $90   ; 9E
+	.byte $90   ; 9F
+	.byte $00   ; A0
+	.byte $00   ; A1
+	.byte $00   ; A2
+	.byte $00   ; A3
+	.byte $00   ; A4
+	.byte $00   ; A5
+	.byte $7C   ; A6
+	.byte $23   ; A7
+	.byte $4C   ; A8
+	.byte $40   ; A9
+	.byte $39   ; AA
+	.byte $23   ; AB
+	.byte $4C   ; AC
+	.byte $00   ; AD
+	.byte $21   ; AE
+	.byte $00   ; AF
+	.byte $18   ; B0
+	.byte $00   ; B1
+	.byte $D8   ; B2
+	.byte $00   ; B3
+	.byte $03   ; B4
+	.byte $00   ; B5
+	.byte $00   ; B6
+	.byte $00   ; B7
+	.byte $40   ; B8
+	.byte $00   ; B9
+	.byte $08   ; BA
+	.byte $00   ; BB
+	.byte $00   ; BC
+	.byte $00   ; BD
+	.byte $00   ; BE
+	.byte $00   ; BF
+	.byte $0E   ; C0
+	.byte $03   ; C1
+	.byte $80   ; C2
+	.byte $BC   ; C3
+	.byte $80   ; C4
+	.byte $00   ; C5
+	.byte $00   ; C6
+	.byte $00   ; C7
+	.byte $F3   ; C8
+	.byte $00   ; C9
+	.byte $FF   ; CA
+	.byte $00   ; CB
+	.byte $33   ; CC
+	.byte $00   ; CD
+	.byte $F3   ; CE
+	.byte $00   ; CF
+	.byte $C8   ; D0
+	.byte $00   ; D1
+	.byte $40   ; D2
+	.byte $00   ; D3
+	.byte $60   ; D4
+	.byte $00   ; D5
+	.byte $00   ; D6
+	.byte $00   ; D7
+	.byte $00   ; D8
+	.byte $FF   ; D9
+	.byte $A8   ; DA
+	.byte $9F   ; DB
+	.byte $05   ; DC
+	.byte $9F   ; DD
+	.byte $FF   ; DE
+	.byte $00   ; DF
+	.byte $00   ; E0
+	.byte $00   ; E1
+	.byte $08   ; E2
+	.byte $ED   ; E3
+	.byte $31   ; E4
+	.byte $ED   ; E5
+	.byte $00   ; E6
+	.byte $00   ; E7
+	.byte $54   ; E8
+	.byte $04   ; E9
+	.byte $E0   ; EA
+	.byte $00   ; EB
+	.byte $08   ; EC
+	.byte $7F   ; ED
+	.byte $9D   ; EE
+	.byte $00   ; EF
+	.byte $01   ; F0
+	.byte $00   ; F1
+	.byte $E2   ; F2
+	.byte $00   ; F3
+	.byte $00   ; F4
+	.byte $FF   ; F5
+	.byte $A8   ; F6
+	.byte $9F   ; F7
+	.byte $7F   ; F8
+	.byte $39   ; F9
+	.byte $90   ; FA
+	.byte $28   ; FB
+	.byte $00   ; FC
+	.byte $28   ; FD
+	.byte $33   ; FE
+	.byte $00   ; FF
 
 
 
-tbl_FF00:
+tbl_FF00: ; $10(16) bytes
 ; !!!
-	.byte $26   ; 
-	.byte $2D   ; 
-	.byte $D7   ; 
-	.byte $80   ; 
-	.byte $5C   ; 
-	.byte $DE   ; 
-	.byte $7F   ; 
-	.byte $A3   ; 
-	.byte $11   ; 
-	.byte $64   ; 
-	.byte $DF   ; 
-	.byte $6D   ; 
-	.byte $A6   ; 
-	.byte $00   ; 
-	.byte $00   ; 
-	.byte $00   ; 
+	.byte $26   ; 00
+	.byte $2D   ; 01
+	.byte $D7   ; 02
+	.byte $80   ; 03
+	.byte $5C   ; 04
+	.byte $DE   ; 05
+	.byte $7F   ; 06
+	.byte $A3   ; 07
+	.byte $11   ; 08
+	.byte $64   ; 09
+	.byte $DF   ; 0A
+	.byte $6D   ; 0B
+	.byte $A6   ; 0C
+	.byte $00   ; 0D
+	.byte $00   ; 0E
+	.byte $00   ; 0F
 
 
 
@@ -9635,8 +9678,8 @@ sub_FF17:
 	LDA #$00
 	STA ram_0010
 bra_FF1D:
-	LDA ram_btn_press
-	CMP #con_btn___Start
+	LDA ram_00B4_btn_press + 0  ; p1
+	CMP #con_act_Start_pressed
 	BEQ bra_FF33
 	LDA ram_0010
 	BNE bra_FF1D
@@ -9653,26 +9696,26 @@ bra_FF35_RTS:
 
 
 
-bra_FF3C:
-	LDA ram_btn_rol
-	BNE bra_FF50
-	LDA ram_0010
-	BNE bra_FF3C
-	LDA ram_0011
-	BEQ bra_FF52_RTS
-	DEC ram_0011
-	LDA #$3C
-	STA ram_0010
-	BNE bra_FF3C
-; !!!
-bra_FF50:
-	LDA #$01
-bra_FF52_RTS:
-	RTS
+;bra_FF3C:				; -Eriknoc: This code is never reached. - $17(23) bytes
+;	LDA ram_0014_btn_rol
+;	BNE bra_FF50
+;	LDA ram_0010
+;	BNE bra_FF3C
+;	LDA ram_0011
+;	BEQ bra_FF52_RTS
+;	DEC ram_0011
+;	LDA #$3C
+;	STA ram_0010
+;	BNE bra_FF3C
+;; !!!
+;bra_FF50:
+;	LDA #$01
+;bra_FF52_RTS:
+;	RTS
 
 
 
-sub_FF53:
+sub_FF53_hex_to_dec_ascii:
 	TYA
 	PHA
 	TXA
@@ -9680,20 +9723,20 @@ sub_FF53:
 	LDY #$00
 	LDX #$00
 bra_FF5B_loop:
-	LDA #$30
-	STA ram_00A7,X
+	LDA #$30	; ascii "0"
+	STA ram_00A7_dec_num_ascii,X
 loc_FF5F:
-	LDA ram_00A5
+	LDA ram_00A5_hex_num_word + 0
 	SEC
-	SBC tbl_FF8B,Y
+	SBC tbl_FF8B_decimal_place + 0,Y
 	PHA
-	LDA ram_00A6
-	SBC tbl_FF8C,Y
+	LDA ram_00A5_hex_num_word + 1
+	SBC tbl_FF8B_decimal_place + 1,Y
 	BCC bra_FF77
-	STA ram_00A6
+	STA ram_00A5_hex_num_word + 1
 	PLA
-	STA ram_00A5
-	INC ram_00A7,X
+	STA ram_00A5_hex_num_word + 0
+	INC ram_00A7_dec_num_ascii,X
 	JMP loc_FF5F
 bra_FF77:
 	PLA
@@ -9702,10 +9745,10 @@ bra_FF77:
 	INX
 	CPX #$04
 	BNE bra_FF5B_loop
-	LDA ram_00A5
+	LDA ram_00A5_hex_num_word + 0
 	CLC
 	ADC #$30
-	STA ram_00A7,X
+	STA ram_00A7_dec_num_ascii,X
 	PLA
 	TAX
 	PLA
@@ -9714,51 +9757,53 @@ bra_FF77:
 
 
 
-tbl_FF8B:
-	.byte $10   ; 
-tbl_FF8C:
-	.byte $27   ; 
-	.byte $E8   ; 
-	.byte $03   ; 
-	.byte $64   ; 
-	.byte $00   ; 
-	.byte $0A   ; 
-	.byte $00   ; 
+tbl_FF8B_decimal_place:
+	.word $2710, $03E8, $0064, $000A	; 10000, 1000, 100, 10
+;tbl_FF8B:
+;	.byte $10   ; 
+;tbl_FF8C:
+;	.byte $27   ; 
+;	.byte $E8   ; 
+;	.byte $03   ; 
+;	.byte $64   ; 
+;	.byte $00   ; 
+;	.byte $0A   ; 
+;	.byte $00   ; 
 
 
 
 sub_FF9D_write_to_ppu:
 	TYA
 	PHA
-	LDA #$00
-	STA ram_00B3
-	LDA ram_00B0    ; multiply 00B0 by 20h and store in 00B3
-	ASL
-	ASL
-	ASL
-	ROL ram_00B3
-	ASL
-	ROL ram_00B3
-	ASL
-	ROL ram_00B3
-	CLC
-	ADC ram_00B1    ; add 00B1
-	PHA
-	LDA ram_00B3
-	ORA #$20
-	STA $2006
-	PLA
-	STA $2006
+	LDA #$00				;2    A:       temp:
+	STA ram_00B3_temp		;3  -          00000000
+	LDA ram_00B0_text_V_pos	;3  - hgfedcba
+	ASL						;2  h gfedcba0
+	ASL						;2  g fedcba00
+	ASL						;2  f edcba000
+	ROL ram_00B3_temp		;5  0          0000000f
+	ASL						;2  e dcba0000
+	ROL ram_00B3_temp		;5  0          000000fe
+	ASL						;2  d cba00000
+	ROL ram_00B3_temp		;5  0          00000fed
+	CLC						;2  0
+	ADC ram_00B1_text_H_pos	;3    cbaHHHHH
+	PHA						;3
+	LDA ram_00B3_temp		;3    00000fed
+	ORA #$20				;2    00100fed
+	STA $2006 ; PPUADDR H	;4
+	PLA						;4    cbaHHHHH
+	STA $2006 ; PPUADDR L	;4
 	LDY #$00
-	LDA ram_00AE
+	LDA ram_00AE_text_ptr + 0  ; L
 	BNE bra_FFC9_loop
-	LDA ram_00AF
+	LDA ram_00AE_text_ptr + 1  ; H
 	BEQ bra_FFD8        ; if both bytes 00, then fill with 00, otherwise it's an indirect pointer
 bra_FFC9_loop:
-	LDA (ram_00AE),Y
+	LDA (ram_00AE_text_ptr),Y
 	STA $2007
 	INY
-	CPY ram_00B2
+	CPY ram_00B2_text_length
 	BNE bra_FFC9_loop
 	BEQ bra_FFE2_exit
 bra_FFD8:   ; bzk optimize
@@ -9766,7 +9811,7 @@ bra_FFD8:   ; bzk optimize
 bra_FFDA_loop:
 	STA $2007
 	INY
-	CPY ram_00B2
+	CPY ram_00B2_text_length
 	BNE bra_FFDA_loop
 bra_FFE2_exit:
 	PLA

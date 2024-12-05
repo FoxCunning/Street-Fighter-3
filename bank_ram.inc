@@ -55,27 +55,27 @@ ram_0001                        = $01 ; 24
 ram_0002                        = $02 ; N/A  unused address was taken for indirect addressing mode usage
 ram_0003                        = $03 ; N/A  unused address was taken for indirect addressing mode usage
 ram_0004                        = $04 ; 4   
-ram_copy_camera_X               = $05 ; N/A  originally unused, now holds a copy of a camera pos from the previous frame
+ram_0005_copy_camera_X          = $05 ; N/A  originally unused, now holds a copy of a camera pos from the previous frame
 ram_0006                        = $06 ; 5   ($indirect),Y <3>   
 ram_0007                        = $07 ; 2   
 ram_0008                        = $08 ; 4   ($indirect),Y <3>   
 ram_0009                        = $09 ; 1   
 ram_000A                        = $0A ; 4   ($indirect),Y <3>   
 ram_000B                        = $0B ; 1   
-ram_irq_screen                  = $0C ; 5   
-ram_level                       = $0D ; 6   current level in gameplay mode
-ram_current_game_mode           = $0E ; 12  what's happening in the game right now, see bank_val.inc for details
-ram_irq_counter                 = $0F ; 8   originally counts each 8th scanline, now counts how many times irq was triggered
+ram_000C_irq_screen             = $0C ; 5   
+ram_000D_difficulty             = $0D ; 6   current level in gameplay mode
+ram_000E_current_game_mode      = $0E ; 12  what's happening in the game right now, see bank_val.inc for details
+ram_000F_irq_counter            = $0F ; 8   originally counts each 8th scanline, now counts how many times irq was triggered
 ram_0010                        = $10 ; 22   
 ram_0011                        = $11 ; 3   
 ram_0012                        = $12 ; 2   
 ram_0013                        = $13 ; 3   
-ram_btn_rol                     = $14 ; 9   
+ram_0014_btn_rol                = $14 ; 9   
 ram_0015                        = $15 ; 7   
 ram_0016                        = $16 ; 4   
 ram_0017                        = $17 ; 2   
 ram_0018                        = $18 ; 2   
-ram_0019                        = $19 ; 3   
+ram_0019_temp                   = $19 ; 3   only used in sub_ECA7 for temp storage
 ram_001A                        = $1A ; 2   
 ram_001B                        = $1B ; 2   
 ram_001C                        = $1C ; 2   
@@ -83,19 +83,35 @@ ram_001D                        = $1D ; 4
 ram_001E                        = $1E ; 2   
 ram_001F                        = $1F ; 3   
 ram_0020                        = $20 ; 4   
-ram_copy_btn_press              = $21 ; 12   
-ram_copy_btn_hold               = $22 ; 21   
+ram_0021_btn_press_copy         = $21 ; 12   
+ram_0022_btn_hold_copy          = $22 ; 21   
 ram_0023                        = $23 ; 8   
-ram_0024                        = $24 ; 9   
+
+ram_0024_special_motion_id      = $24 ; 9   Motion ID for Specials  ; CMP'd to offset 0 in Special move definitions
+; 00	none
+; 01	[D],U+K
+; 02	
+; 03	[B],F+K
+; 04	[B],F+P
+; 05	
+; 06	F,DF,F+P
+; 07	D,DB,B+K
+; 08	D,DF,F+P
+; 09	D,DF,F+K
+; 0A	P…
+; 0B	K…
+; 0C	
+; FF	[End]
+
 ram_0025                        = $25 ; 4   
 ram_0026                        = $26 ; 4   
-ram_screen                      = $27 ; 7   background id
+ram_0027_background_id          = $27 ; 7   background id		; previously ram_screen
 ram_0028                        = $28 ; 6   
 ram_0029                        = $29 ; N/A
 ram_002A                        = $2A ; 5   
 ram_002B                        = $2B ; 5   
 ram_002C                        = $2C ; 2   
-ram_hud_height                  = $2D ; 6   affects how many black lines will appear at the top
+ram_002D_hud_height             = $2D ; 6   affects how many black lines will appear at the top
 ram_002E                        = $2E ; 25   
 ram_002F                        = $2F ; 10   
 ram_0030                        = $30 ; 3   
@@ -106,13 +122,15 @@ ram_0034                        = $34 ; 2
 ram_0035                        = $35 ; 2   
 ram_0036                        = $36 ; 3   
 ram_0037                        = $37 ; 2   
-ram_irq_data_index              = $38 ; 4   originally was an offset for reading screen table during irq, now does something similar
-ram_camera_X                    = $39 ; 5   
+ram_0038_irq_data_index         = $38 ; 4   originally was an offset for reading screen table during irq, now does something similar
+ram_0039_camera_X               = $39 ; 5   00=leftmost, 3F=center, 7E=rightmost
 ram_003A                        = $3A ; 10   
-ram_p1_fighter                  = $3B ; 15   
-ram_p2_fighter                  = $3C ; 9   
-ram_003D                        = $3D ; 3   
-ram_game_time                   = $3E ; 10   
+
+;Base            Player:Index = 1:$00 2:$01  Access via Base,Index or Base+Index
+ram_003B_fighter_id				= $3B ; $3C  Player fighter ID
+
+ram_003D_sub_counter            = $3D ; 3   
+ram_003E_game_time              = $3E ; 10   
 ram_003F                        = $3F ; 3   
 ram_0040                        = $40 ; 4   
 ram_0041                        = $41 ; 2   
@@ -146,10 +164,12 @@ ram_005C                        = $5C ; N/A
 ram_005D                        = $5D ; 3   
 ram_005E                        = $5E ; 9   
 ram_005F                        = $5F ; 7   
-ram_rng_seed                    = $60 ; 8-bit random seed
+ram_0060_rng_seed               = $60 ; 8-bit random seed
 ram_0061                        = $61 ; N/A
-ram_p1_hud_hp                   = $62 ; 6   value for statusbar, slowly decreases when hit, compares to 0510
-ram_p2_hud_hp                   = $63 ; 6   value for statusbar, slowly decreases when hit, compares to 0540
+
+;Base            Player:Index = 1:$00 2:$01  Access via Base,Index or Base+Index
+ram_0062_hud_hp                 = $62 ; $63  Value for statusbar, slowly decreases when hit, p1 compares to 0510, p2 compares to 0540
+
 ram_0064                        = $64 ; 2   
 ram_0065                        = $65 ; 4   
 ram_0066                        = $66 ; 5   ($indirect),Y <4>   
@@ -178,30 +198,48 @@ ram_007C                        = $7C ; 8
 ram_007D                        = $7D ; 3   
 ram_007E                        = $7E ; 2   
 ram_007F                        = $7F ; 2   
-ram_0080                        = $80 ; 6   Pointer to SFX data ch0 (LO)
-ram_0081                        = $81 ; 4   Pointer to SFX data ch0 (HI)
-ram_0082                        = $82 ; N/A Pointer to SFX data ch1 (LO)
-ram_0083                        = $83 ; N/A Pointer to SFX data ch1 (HI)
-ram_0084                        = $84 ; N/A Pointer to SFX data ch2 (LO)
-ram_0085                        = $85 ; N/A Pointer to SFX data ch2 (HI)
-ram_0086                        = $86 ; N/A Pointer to SFX data ch3 (LO)
-ram_0087                        = $87 ; N/A Pointer to SFX data ch3 (HI)
-ram_0088                        = $88 ; 1   Pointer to music data ch0 (LO)
-ram_0089                        = $89 ; 1   Pointer to music data ch0 (HI)
-ram_008A                        = $8A ; N/A Pointer to music data ch1 (LO)
-ram_008B                        = $8B ; N/A Pointer to music data ch1 (HI)
-ram_008C                        = $8C ; N/A Pointer to music data ch2 (LO)
-ram_008D                        = $8D ; N/A Pointer to music data ch2 (HI)
-ram_008E                        = $8E ; N/A Pointer to music data ch3 (LO)
-ram_008F                        = $8F ; N/A Pointer to music data ch3 (HI)
-ram_sound_duration              = $90 ; 6   Note/sound event duration counter, SFX ch0
-ram_0091                        = $91 ; N/A Note/sound event duration counter, SFX ch1
-ram_0092                        = $92 ; N/A Note/sound event duration counter, SFX ch2
-ram_0093                        = $93 ; N/A Note/sound event duration counter, SFX ch3
-ram_music_duration              = $94 ; 1   Note/sound event duration counter, Music ch0
-ram_0095                        = $95 ; N/A Note/sound event duration counter, Music ch1
-ram_0096                        = $96 ; N/A Note/sound event duration counter, Music ch2
-ram_0097                        = $97 ; N/A Note/sound event duration counter, Music ch3
+
+
+
+; SFX data			  Ch:Index = 0:00 1:02 2:04 3:06  Access via Base+Offset,Index
+ram_0080_SFX_data_ptr			= $80;	82   84   86  Offset 0 (LO) SFX
+								; $81	83   85   87  Offset 1 (HI)
+
+; Music data		  Ch:Index = 0:00 1:02 2:04 3:06  Access via Base+Offset,Index
+ram_0088_music_data_ptr			= $88;	8A   8C   8E  Offset 0 (LO) Music
+								; $89	8B   8D   8F  Offset 1 (HI)
+
+; SFX/Music			  Ch Index =    0    1    2    3  Access via Base,Index
+ram_0090_sound_duration			= $90;  91   92   93  Note/sound event duration counter, SFX
+ram_0094_music_duration			= $94;  95   96   97  Note/sound event duration counter, Music
+
+;ram_0080						= $80 ; 6   Pointer to SFX data ch0 (LO)
+;ram_0081						= $81 ; 4   Pointer to SFX data ch0 (HI)
+;ram_0082						= $82 ; N/A Pointer to SFX data ch1 (LO)
+;ram_0083						= $83 ; N/A Pointer to SFX data ch1 (HI)
+;ram_0084						= $84 ; N/A Pointer to SFX data ch2 (LO)
+;ram_0085						= $85 ; N/A Pointer to SFX data ch2 (HI)
+;ram_0086						= $86 ; N/A Pointer to SFX data ch3 (LO)
+;ram_0087						= $87 ; N/A Pointer to SFX data ch3 (HI)
+;ram_0088						= $88 ; 1   Pointer to music data ch0 (LO)
+;ram_0089						= $89 ; 1   Pointer to music data ch0 (HI)
+;ram_008A						= $8A ; N/A Pointer to music data ch1 (LO)
+;ram_008B						= $8B ; N/A Pointer to music data ch1 (HI)
+;ram_008C						= $8C ; N/A Pointer to music data ch2 (LO)
+;ram_008D						= $8D ; N/A Pointer to music data ch2 (HI)
+;ram_008E						= $8E ; N/A Pointer to music data ch3 (LO)
+;ram_008F						= $8F ; N/A Pointer to music data ch3 (HI)
+;ram_0090_sound_duration		= $90 ; 6   Note/sound event duration counter, SFX ch0
+;ram_0091						= $91 ; N/A Note/sound event duration counter, SFX ch1
+;ram_0092						= $92 ; N/A Note/sound event duration counter, SFX ch2
+;ram_0093						= $93 ; N/A Note/sound event duration counter, SFX ch3
+;ram_0094_music_duration		= $94 ; 1   Note/sound event duration counter, Music ch0
+;ram_0095						= $95 ; N/A Note/sound event duration counter, Music ch1
+;ram_0096						= $96 ; N/A Note/sound event duration counter, Music ch2
+;ram_0097						= $97 ; N/A Note/sound event duration counter, Music ch3
+
+
+
 ram_snd_ptr_lo                  = $98 ; 6   Pointer to current music data (LO)
 ram_snd_ptr_hi                  = $99 ; 2   Pointer to current music data (HI)
 ram_active_ch_mask              = $9A ; 13  Bit mask indicating which channel's events are being processed: $01 SFX Sq0, $02 SFX Sq1... $10 Music Sq0, $20 Music Sq1... 
@@ -211,55 +249,61 @@ ram_apu_control                 = $9D ; 16   value to write to APU Status regist
 ram_ch_mute_mask                = $9E ; 27   bit mask used to mute certain channels so that SFX can play over music
 ram_backup_mute_mask            = $9F ; 3   
 ram_00A0                        = $A0 ; 12   
+
 ram_00A1                        = $A1 ; 21   
+
 ram_00A2                        = $A2 ; N/A
 ram_00A3                        = $A3 ; N/A
 ram_00A4                        = $A4 ; N/A
-ram_00A5                        = $A5 ; 14   also something else
-ram_00A6                        = $A6 ; 13   
-ram_00A7                        = $A7 ; 3   
-ram_00A8                        = $A8 ; N/A
-ram_00A9                        = $A9 ; N/A
-ram_00AA                        = $AA ; N/A
-ram_00AB                        = $AB ; N/A
-ram_00AC                        = $AC ; 1   
-ram_00AD                        = $AD ; 1   
-ram_00AE                        = $AE ; 28   ($indirect),Y <1>   
-ram_00AF                        = $AF ; 27   
-ram_00B0                        = $B0 ; 27   
-ram_00B1                        = $B1 ; 27   
-ram_00B2                        = $B2 ; 28   
-ram_00B3                        = $B3 ; 6   
-ram_btn_press                   = $B4 ; 11          p1, see bank_val.inc for details
-    ram_00B5                        = $B5 ; N/A     p2
-ram_btn_hold                    = $B6 ; 19          p1, see bank_val.inc for details
-    ram_00B7                        = $B7 ; 2       p2
+
+ram_00A5_hex_num_word           = $A5 ; 14   hex number L // also something else // how much to add to player score
+;ram_00A6                        = $A6 ; 13   hex number H // inits @ #$00
+ram_00A7_dec_num_ascii          = $A7 ; 3    +0 | 1st digit decimal number ASCII
+;ram_00A8                        = $A8 ; N/A +1 | 2nd digit / Score starts
+;ram_00A9                        = $A9 ; N/A +2 | 3rd digit
+;ram_00AA                        = $AA ; N/A +3 | 4th digit / Game time starts
+;ram_00AB                        = $AB ; N/A +4 | 5th digit / End of calculatable number
+;ram_00AC                        = $AC ; 1   +5 | 6th digit / always "0" for score display use
+;ram_00AD                        = $AD ; 1   +6 | 7th digit / always "0" for score display use
+
+; Pointer 						   L     H
+ram_00AE_text_ptr               = $AE ; $AF  text pointer
+
+ram_00B0_text_V_pos             = $B0 ; 27   text Vpos
+ram_00B1_text_H_pos             = $B1 ; 27   text Hpos
+ram_00B2_text_length            = $B2 ; 28   text Length
+ram_00B3_temp                   = $B3 ; 6    temp storage
+
+;Base            Player:Index = 1:$00 2:$01  Access via Base,Index or Base+Index
+ram_00B4_btn_press              = $B4 ; $B5         see bank_val.inc for details
+ram_00B6_btn_hold               = $B6 ; $B7         see bank_val.inc for details
+
 ram_00B8                        = $B8 ; 2   
 ram_00B9                        = $B9 ; N/A
 ram_00BA                        = $BA ; 4   
-ram_00BB                        = $BB ; 4   
+ram_00BB_player_grabbed         = $BB ; 4   player being grabbed: 10:p1, 40:p2 
 ram_00BC                        = $BC ; 5   
 ram_00BD                        = $BD ; 5   
 ram_00BE                        = $BE ; 2   
 ram_00BF                        = $BF ; 4   
 ram_00C0                        = $C0 ; 2   
 ram_00C1                        = $C1 ; 3   
-ram_irq_next_bank               = $C2 ; N/A originally unused, sets the first chr bank id, it will be increased by 01 each trigger
-ram_irq_next_line               = $C3 ; N/A originally unused, sets the first line where you need to start swap chr banks
-ram_irq_lines_interval          = $C4 ; N/A originally unused, sets lines between next irq trigger
-ram_irq_trigger_limit           = $C5 ; N/A originally unused, sets how many times irq needs to swap chr banks during a frame
+ram_00C2_irq_next_bank          = $C2 ; N/A originally unused, sets the first chr bank id, it will be increased by 01 each trigger
+ram_00C3_irq_next_line          = $C3 ; N/A originally unused, sets the first line where you need to start swap chr banks
+ram_00C4_irq_lines_interval     = $C4 ; N/A originally unused, sets lines between next irq trigger
+ram_00C5_irq_trigger_limit      = $C5 ; N/A originally unused, sets how many times irq needs to swap chr banks during a frame
 ram_00C6                        = $C6 ; 5   
-ram_timer_before_demo           = $C7 ; 4   seconds
+ram_00C7_timer_before_demo      = $C7 ; 4   seconds
 ram_00C8                        = $C8 ; 6   
-ram_cursor_difficulty           = $C9 ; 8   
-ram_difficulty                  = $CA ; 7   
-ram_credits                     = $CB ; 4   how many left
+ram_00C9_cursor_difficulty      = $C9 ; 8   
+ram_00CA_difficulty             = $CA ; 7   
+ram_00CB_credits                = $CB ; 4   how many left
 ram_00CC                        = $CC ; 5   
 ram_00CD                        = $CD ; 3   
 ram_00CE                        = $CE ; N/A
 ram_00CF                        = $CF ; N/A
-ram_song_bank                   = $D0 ; Value for $5115 to switch to bank with current music
-ram_tmp_var                     = $D1 ; Shared temporary variable used for quick maths or to avoid stack operations
+ram_00D0_song_bank              = $D0 ; Value for $5115 to switch to bank with current music
+ram_00D1_tmp_var                = $D1 ; Shared temporary variable used for quick maths or to avoid stack operations
 ram_00D2                        = $D2 ; N/A
 ram_00D3                        = $D3 ; 4   
 ram_00D4                        = $D4 ; 6   
@@ -272,43 +316,44 @@ ram_00DA                        = $DA ; 2
 ram_00DB                        = $DB ; 4   
 ram_00DC                        = $DC ; 4   
 ram_00DD                        = $DD ; 2   
-ram_00DE                        = $DE ; 2   
+ram_00DE_fighter_id_tmp         = $DE ; 2   
 ram_00DF                        = $DF ; 7   
-ram_00E0                        = $E0 ; 8   
-ram_00E1                        = $E1 ; N/A
-ram_00E2                        = $E2 ; 6   
-ram_00E3                        = $E3 ; N/A
-ram_00E4                        = $E4 ; 2   
-ram_00E5                        = $E5 ; N/A
-ram_00E6                        = $E6 ; 6   
-ram_00E7                        = $E7 ; N/A
-ram_00E8                        = $E8 ; 3   
-ram_00E9                        = $E9 ; N/A
-ram_00EA                        = $EA ; 1   
-ram_00EB                        = $EB ; N/A
+
+;Base            Player:Index = 1:$00 2:$01  Access via Base,Index or Base+Index
+ram_00E0_Dpad_direction_3       = $E0 ; $E1  Direction 3 - newest   |  Bits: xxxxUDLR  history, register, poll, tab, log, record, tally
+ram_00E2_Dpad_direction_2       = $E2 ; $E3  Direction 2 - previous
+ram_00E4_Dpad_direction_1       = $E4 ; $E5  Direction 1 - oldest
+ram_00E6_Dpad_duration_3        = $E6 ; $E7   Duration 3 - newest   |  Counter: 00-FF, FF when idle
+ram_00E8_Dpad_duration_2        = $E8 ; $E9   Duration 2 - previous
+ram_00EA_Dpad_duration_1        = $EA ; $EB   Duration 1 - oldest
+
 ram_00EC                        = $EC ; N/A
 ram_00ED                        = $ED ; N/A
-ram_00EE                        = $EE ; 4   
-ram_00EF                        = $EF ; N/A
-ram_00F0                        = $F0 ; 4   
-ram_00F1                        = $F1 ; N/A
-ram_00F2                        = $F2 ; 2   
-ram_00F3                        = $F3 ; N/A
-ram_cursor_fighter              = $F4 ; 6           p1
-    ram_00F5                        = $F5 ; 2       p2
-ram_00F6                        = $F6 ; 4   
-ram_00F7                        = $F7 ; 3   
-ram_00F8                        = $F8 ; 6   
-ram_00F9                        = $F9 ; 6   
+
+;Base            Player:Index = 1:$00 2:$01  Access via Base,Index or Base+Index
+ram_00EE_btn_idle_counter       = $EE ; $EF  GP Length between btn presses; Pauses when jumping; Inc counter loops from FF to 00
+ram_00F0_btn_mash_counter       = $F0 ; $F1  GP Button mashing counter
+ram_00F2_ground_attack_type     = $F2 ; $F3  GP Atk? Ground only. 01 = s.P or c.P, 03 = s.K or c.K
+
+;Base            Player:Index = 1:$00 2:$01  Access via Base,Index or Base+Index
+ram_00F4_PS_cursor_grid         = $F4 ; $F5  0-8  {previously ram_cursor_fighter}
+
+ram_00F6_PS_cursor_X_grid       = $F6 ;      0-2  {used for p1 and p2}
+ram_00F7_PS_cursor_Y_grid       = $F7 ;      0-2  {used for p1 and p2}
+
+;Base            Player:Index = 1:$00 2:$01  Access via Base,Index or Base+Index
+ram_00F8_rounds_won             = $F8 ; $F9  GP Rounds won 0-2
+
+
 ram_00FA                        = $FA ; 3   
-ram_pause_flag                  = $FB ; 6   
+ram_00FB_pause_state            = $FB ; 6   ; previously ram_pause_flag
                                         ; 00 = game goes on
                                         ; 01 = pause was set
                                         ; 02 = pause was just released
 ram_00FC                        = $FC ; 6   
 ram_00FD                        = $FD ; 3   
 ram_00FE                        = $FE ; 5   
-ram_00FF                        = $FF ; 3   
+ram_00FF_FDC0_tbl_index         = $FF ; 3   
 ram_0100                        = $0100 ; N/A
 ram_0101                        = $0101 ; N/A
 ram_0102                        = $0102 ; N/A
@@ -1029,7 +1074,7 @@ ram_03CC                        = $03CC ; N/A
 ram_03CD                        = $03CD ; N/A
 ram_03CE                        = $03CE ; N/A
 ram_03CF                        = $03CF ; N/A
-ram_match_order                 = $03D0 ; List of opponents for single-player matches
+ram_03D0_match_order            = $03D0 ; List of opponents for single-player matches
 ram_03D1                        = $03D1 ; N/A
 ram_03D2                        = $03D2 ; N/A
 ram_03D3                        = $03D3 ; N/A
